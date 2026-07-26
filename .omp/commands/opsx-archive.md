@@ -6,153 +6,24 @@ Archive a completed change in the experimental workflow.
 
 **Store selection:** If the user names a store (a store is a standalone OpenSpec repo registered on this machine) or the work lives in one, run `openspec store list --json` to discover registered store ids, then pass `--store <id>` on the commands that read or write specs and changes (`new change`, `status`, `instructions`, `list`, `show`, `validate`, `archive`, `doctor`, `context`). Other commands do not take the flag. Hints printed by commands already carry the flag; keep it on follow-ups. Without a store, commands act on the nearest local `openspec/` root.
 
-**Input**: Optionally specify a change name after `/opsx-archive` (e.g., `/opsx-archive add-auth`). If omitted, check if it can be inferred from conversation context. If vague or ambiguous you MUST prompt for available changes.
-**Provided arguments**: $@
+**Input**: Optionally specify a change name after `/opsx-archive` (e.g., `/opsx-archive add-auth`). If omitted, check if it can be inferred from conversation context. If vague or ambiguous, use AskUserQuestion to let the user select an active change. Never auto-select one.
 
-**Steps**
+**Workflow**
 
-1. **If no change name provided, prompt for selection**
-
-   Run `openspec list --json` to get available changes. Use the **AskUserQuestion tool** to let the user select.
-
-   Show only active changes (not already archived).
-   Include the schema used for each change if available.
-
-   **IMPORTANT**: Do NOT guess or auto-select a change. Always let the user choose.
-
-2. **Check artifact completion status**
-
-   Run `openspec status --change "<name>" --json` to check artifact completion.
-
-   Parse the JSON to understand:
-   - `schemaName`: The workflow being used
-   - `planningHome`, `changeRoot`, `artifactPaths`, and `actionContext`: path and scope context
-   - `artifacts`: List of artifacts with their status (`done` or other)
-
-   **If any artifacts are not `done`:**
-   - Display warning listing incomplete artifacts
-   - Prompt user for confirmation to continue
-   - Proceed if user confirms
-
-3. **Check task completion status**
-
-   Read the tasks file (typically `tasks.md`) to check for incomplete tasks.
-
-   Count tasks marked with `- [ ]` (incomplete) vs `- [x]` (complete).
-
-   **If incomplete tasks found:**
-   - Display warning showing count of incomplete tasks
-   - Prompt user for confirmation to continue
-   - Proceed if user confirms
-
-   **If no tasks file exists:** Proceed without task-related warning.
-
-4. **Assess delta spec sync state**
-
-   Use `artifactPaths.specs.existingOutputPaths` from status JSON to check for delta specs. If none exist, proceed without sync prompt.
-
-   **If delta specs exist:**
-   - Compare each delta spec with its corresponding main spec at `openspec/specs/<capability>/spec.md`
-   - Determine what changes would be applied (adds, modifications, removals, renames)
-   - Show a combined summary before prompting
-
-   **Prompt options:**
-   - If changes needed: "Sync now (recommended)", "Archive without syncing"
-   - If already synced: "Archive now", "Sync anyway", "Cancel"
-
-   If user chooses sync, use Task tool (subagent_type: "general-purpose", prompt: "Use Skill tool to invoke openspec-sync-specs for change '<name>'. Delta spec analysis: <include the analyzed delta spec summary>"). Proceed to archive regardless of choice.
-
-5. **Perform the archive**
-
-   Create an `archive` directory under `planningHome.changesDir` if it doesn't exist:
-   ```bash
-   mkdir -p "<planningHome.changesDir>/archive"
-   ```
-
-   Generate target name using current date: `YYYY-MM-DD-<change-name>`
-
-   **Check if target already exists:**
-   - If yes: Fail with error, suggest renaming existing archive or using different date
-   - If no: Move `changeRoot` to the archive directory
-
-   ```bash
-   mv "<changeRoot>" "<planningHome.changesDir>/archive/YYYY-MM-DD-<name>"
-   ```
-
-6. **Display summary**
-
-   Show archive completion summary including:
-   - Change name
-   - Schema that was used
-   - Archive location
-   - Spec sync status (synced / sync skipped / no delta specs)
-   - Note about any warnings (incomplete artifacts/tasks)
-
-**Output On Success**
-
-```
-## Archive Complete
-
-**Change:** <change-name>
-**Schema:** <schema-name>
-**Archived to:** the archive path derived from `planningHome.changesDir`/YYYY-MM-DD-<name>/
-**Specs:** ✓ Synced to main specs
-
-All artifacts complete. All tasks complete.
-```
-
-**Output On Success (No Delta Specs)**
-
-```
-## Archive Complete
-
-**Change:** <change-name>
-**Schema:** <schema-name>
-**Archived to:** the archive path derived from `planningHome.changesDir`/YYYY-MM-DD-<name>/
-**Specs:** No delta specs
-
-All artifacts complete. All tasks complete.
-```
-
-**Output On Success With Warnings**
-
-```
-## Archive Complete (with warnings)
-
-**Change:** <change-name>
-**Schema:** <schema-name>
-**Archived to:** the archive path derived from `planningHome.changesDir`/YYYY-MM-DD-<name>/
-**Specs:** Sync skipped (user chose to skip)
-
-**Warnings:**
-- Archived with 2 incomplete artifacts
-- Archived with 3 incomplete tasks
-- Delta spec sync was skipped (user chose to skip)
-
-Review the archive if this was not intentional.
-```
-
-**Output On Error (Archive Exists)**
-
-```
-## Archive Failed
-
-**Change:** <change-name>
-**Target:** the archive path derived from `planningHome.changesDir`/YYYY-MM-DD-<name>/
-
-Target archive directory already exists.
-
-**Options:**
-1. Rename the existing archive
-2. Delete the existing archive if it's a duplicate
-3. Wait until a different date to archive
-```
+1. Run `openspec status --change "<name>" --json`. Inspect the schema, planning paths, artifact graph, and action context. Warn and ask before continuing if any artifact is incomplete.
+2. Read `tasks.md` when present. Count complete and incomplete checkboxes. Warn and ask before continuing if any task is incomplete.
+3. Use `artifactPaths.specs.existingOutputPaths` to assess delta-spec synchronization. If deltas exist, compare them with their main specs and summarize additions, modifications, removals, and renames before asking whether to sync. If the user chooses sync, invoke `openspec-sync-specs` for this change; if they cancel, stop.
+4. **Publish before archiving.** This is mandatory and failure leaves the change active.
+   - Read `<changeRoot>/github-issue.json`. Require a canonical GitHub issue URL; parse and verify its repository, number, and state with `gh issue view`.
+   - Resolve the associated PR from a canonical `pullRequest` metadata URL, or only when exactly one open PR body contains a closing reference to the issue. Require the PR base to be the default branch. Do not guess, and do not merge a planning-only PR.
+   - Merge an open PR with `gh pr merge --merge --delete-branch`; re-read it and require `MERGED` plus a merge commit. If it was already merged, retain its merge commit. Re-read the issue; if it remains open, close it with `gh issue close`, then require `CLOSED`.
+   - In a clean worktree for the default branch, fetch and fast-forward, prove it contains the merge commit, and discover the documented release process and authoritative project version. Run the native version command where available; otherwise apply a patch SemVer bump only when there is one unambiguous version source. Stop and ask if release metadata or the bump type is ambiguous.
+   - Run the focused release verification. Commit only version-bump files as `chore(release): v<new-version>`, push to the default branch, and record the resulting `release_commit`. A rejected push stops the workflow before release/archive.
+   - Follow existing release-tag convention (or `v<new-version>` if none). Use `gh release list` and require the remote tag command `existing_tag="$(git ls-remote --tags origin "refs/tags/<tag>")"; test -z "$existing_tag"` to show both release and tag are absent, then run `gh release create "<tag>" --target "<release_commit>" --title "<tag>" --generate-notes`. Re-read the release and require its target to equal `release_commit`.
+5. Create `<planningHome.changesDir>/archive` if needed. Compute `YYYY-MM-DD-<change-name>`, fail if it already exists, then move `changeRoot` there.
+6. Summarize the archive path, spec-sync outcome, merged PR URL, closed issue URL, old/new version, release tag/URL, and release commit. Include any confirmed artifact/task warnings.
 
 **Guardrails**
-- Always prompt for change selection if not provided
-- Use artifact graph (openspec status --json) for completion checking
-- Don't block archive on warnings - just inform and confirm
-- Preserve .openspec.yaml when moving to archive (it moves with the directory)
-- Show clear summary of what happened
-- If sync is requested, use the Skill tool to invoke `openspec-sync-specs` (agent-driven)
-- If delta specs exist, always run the sync assessment and show the combined summary before prompting
+- GitHub publication must complete before the change moves. Never archive, tag, or release after a failed merge, issue closure, version bump, push, or release verification.
+- Preserve `.openspec.yaml` when moving the change.
+- Do not bypass protection, overwrite local work, or infer an ambiguous PR/version/release contract.
