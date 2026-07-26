@@ -86,7 +86,7 @@ Implement tasks from an OpenSpec change.
    - Locate the current branch's pull request with `gh pr view --json number,url,headRefOid`. If one exists, post only inline code-review comments, each anchored to a relevant changed code line with `POST /repos/{owner}/{repo}/pulls/{pull_number}/comments` through `gh api`. Include the PR head SHA as `commit_id`, the repository-relative `path`, the changed `line`, and `side=RIGHT`. Each comment MUST clarify a non-obvious implementation decision, behavioral consequence, operational concern, or verification result at that exact code location.
    - NEVER use `gh pr comment`, PR conversation comments, or a generic completion summary. If no changed code line warrants an explanatory comment, report that no PR code comment was posted. The separate required issue reports may be regular issue comments because they are not code review comments.
    - Format every PR code-review body as concise GitHub Markdown: lead with the implementation fact, use inline code for identifiers, and use short labeled paragraphs such as `**Why:**` or `**Verification:**` only when they add context. For multi-line bodies, pass actual newline characters (for Bash, `body=$'First paragraph\n\n**Why:** context'`); NEVER place literal `\n` text inside an ordinarily quoted `--body` or `-f body` value.
-   - Treat the referenced issue as the durable implementation record. Post one regular Markdown implementation update with this structure:
+   - Keep the proposal-time planning issue body unchanged. After all tasks complete, post one regular Markdown **Implementation update** comment that records what actually shipped with this structure:
      ```markdown
      ## Implementation update: <change-name>
      ### Context
@@ -96,7 +96,7 @@ Implement tasks from an OpenSpec change.
      ### Traceability
      ### Observed problems and improvements
      ```
-     Build the report from the proposal, specifications, design, completed tasks, implementation, and focused verification. Include the PR URL and relevant commit references under **Traceability**. Omit **Observed problems and improvements** when no actual observation exists.
+     Build it from the proposal, specifications, design, completed tasks, implementation, and focused verification. Under **Context**, identify the planning issue and any departure from the plan. Under **Traceability**, include the PR URL and relevant commit references. Omit **Observed problems and improvements** when none exist; never invent or use placeholders.
    - Write the rendered Markdown to a temporary file outside the worktree, submit it with `gh issue comment <issue-reference> --body-file <file>`, then delete the file.
    - If the branch has no pull request, report that no PR code comment could be posted; do not create a PR automatically. If GitHub authentication or a comment command fails, report the exact failure and leave the already-pushed implementation intact.
 

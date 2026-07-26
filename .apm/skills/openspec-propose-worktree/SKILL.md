@@ -65,6 +65,7 @@ Create a complete OpenSpec proposal in its own worktree, publish the planning ar
    - Design decisions and trade-offs, when present.
    - The capabilities/specifications created.
    - The task outline.
+   - Planned verification derived from the specification scenarios.
 
    Create the issue non-interactively and record its canonical URL and number:
    ```bash

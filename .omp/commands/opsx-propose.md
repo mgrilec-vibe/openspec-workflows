@@ -8,7 +8,7 @@ I'll create a change with artifacts:
 - proposal.md (what & why)
 - design.md (how)
 - tasks.md (implementation steps)
-- github-issue.json (the existing GitHub issue reference)
+- github-issue.json (the planning GitHub issue reference)
 
 When ready to implement, run /opsx-apply
 
@@ -45,17 +45,8 @@ When ready to implement, run /opsx-apply
    - `artifacts`: list of all artifacts with their status and dependencies
    - `planningHome`, `changeRoot`, `artifactPaths`, and `actionContext`: path and scope context. Use these instead of assuming repo-local paths.
 
-4. **Record the existing GitHub issue**
 
-   Ask for an existing issue URL or `owner/repo#number` if one is not clear from the request. Verify it with `gh issue view <issue-reference> --json url,number`, then write `<changeRoot>/github-issue.json` before creating planning artifacts:
-   ```json
-   {
-     "issue": "<canonical issue URL>"
-   }
-   ```
-   Do not create an issue, invent an identifier, or continue without a verified issue reference.
-
-5. **Create artifacts in sequence until apply-ready**
+4. **Create artifacts in sequence until apply-ready**
 
    Use the **TodoWrite tool** to track progress through the artifacts.
 
@@ -87,6 +78,33 @@ When ready to implement, run /opsx-apply
       - Use **AskUserQuestion tool** to clarify
       - Then continue with creation
 
+5. **Create the planning GitHub issue and metadata**
+
+   After every `applyRequires` artifact is complete, create the GitHub issue before any implementation begins. Build a Markdown body from the completed planning artifacts with this structure:
+   ```markdown
+   ## Plan: <change-name>
+   ### Context and motivation
+   ### Proposed behavior and capabilities
+   ### Design decisions and trade-offs
+   ### Implementation plan
+   ### Planned verification
+   ### Planning artifacts
+   ```
+   The body describes only the proposed change: use the proposal for motivation and intended behavior, specifications for capabilities and scenarios, design for decisions and trade-offs, tasks for the implementation plan, and the change path plus artifact names for **Planning artifacts**. Do not claim delivered behavior, completed tasks, or verification results. When an artifact contains no source-backed content for a section, write `_Not specified in the plan._` rather than inventing detail.
+
+   Write the rendered body to a temporary file outside the worktree, then create the issue:
+   ```bash
+   issue_url="$(gh issue create --title "Plan: <name>" --body-file "$issue_body")"
+   gh issue view "$issue_url" --json url,number
+   ```
+   Write `<changeRoot>/github-issue.json` with the canonical issue URL:
+   ```json
+   {
+     "issue": "<canonical issue URL>"
+   }
+   ```
+   Remove the temporary body file after creation. If a valid `github-issue.json` already exists for a resumed change, parse it and verify that its issue resolves with `gh issue view <issue-reference> --json url,state` and has state `OPEN`; only then keep it. Otherwise stop and report the conflict rather than creating or attaching a duplicate issue.
+
 6. **Show final status**
    ```bash
    openspec status --change "<name>"
@@ -98,7 +116,7 @@ After completing all artifacts, summarize:
 - Change name and location
 - List of artifacts created with brief descriptions
 - What's ready: "All artifacts created! Ready for implementation."
-- The verified GitHub issue URL and the `github-issue.json` location
+- The created planning issue URL and the `github-issue.json` location
 - Prompt: "Run `/opsx-apply` to start implementing."
 
 **Artifact Creation Guidelines**
@@ -117,4 +135,4 @@ After completing all artifacts, summarize:
 - If context is critically unclear, ask the user - but prefer making reasonable decisions to keep momentum
 - If a change with that name already exists, ask if user wants to continue it or create a new one
 - Verify each artifact file exists after writing before proceeding to next
-- Every proposed change MUST include a valid `github-issue.json` containing the canonical URL of an existing GitHub issue.
+- Every proposed change MUST create or retain exactly one valid `github-issue.json` containing the canonical URL of its planning issue.
