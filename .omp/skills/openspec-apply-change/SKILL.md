@@ -90,9 +90,10 @@ Implement tasks from an OpenSpec change.
 
    After all tasks are complete, read `<changeRoot>/github-issue.json`. It must be a JSON object with an `issue` field containing a GitHub issue URL or `owner/repo#number`. If it is absent or malformed, report that the GitHub follow-up cannot be completed; do not guess an issue.
 
-   - Locate the current branch's pull request with `gh pr view --json number,url`. If one exists, leave concise, implementation-specific comments: one for each non-obvious design decision, behavioral consequence, operational concern, or verification result that reviewers need. If none need separate treatment, leave one summary comment covering the implementation and focused verification. Never post generic completion comments.
+   - Locate the current branch's pull request with `gh pr view --json number,url,headRefOid`. If one exists, post only inline code-review comments, each anchored to a relevant changed code line with `POST /repos/{owner}/{repo}/pulls/{pull_number}/comments` through `gh api`. Include the PR head SHA as `commit_id`, the repository-relative `path`, the changed `line`, and `side=RIGHT`. Each comment MUST clarify a non-obvious implementation decision, behavioral consequence, operational concern, or verification result at that exact code location.
+   - NEVER use `gh pr comment`, PR conversation comments, or a generic completion summary. If no changed code line warrants an explanatory comment, report that no PR code comment was posted. The separate required issue reports may be regular issue comments because they are not code review comments.
    - On the referenced issue, comment on every observed problem and improvement opportunity. State the observation, its effect or evidence, and the recommended next action. Do not invent observations or post placeholder comments when none were found.
-   - If the branch has no pull request, report that no PR comment could be posted; do not create a PR automatically. If GitHub authentication or a comment command fails, report the exact failure and leave the already-pushed implementation intact.
+   - If the branch has no pull request, report that no PR code comment could be posted; do not create a PR automatically. If GitHub authentication or a comment command fails, report the exact failure and leave the already-pushed implementation intact.
 
 8. **On completion or pause, show status**
 
