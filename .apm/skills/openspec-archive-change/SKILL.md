@@ -91,6 +91,12 @@ Archive a completed change in the experimental workflow.
      ```
      Re-read it with `gh release view "<tag>" --repo "<owner/repo>" --json url,tagName,targetCommitish` and require its target to be `release_commit`.
 
+   c. **Synchronize the primary main worktree**
+
+   - Use `git worktree list --porcelain` to enumerate attached worktrees. Compute the absolute common Git directory with `git rev-parse --path-format=absolute --git-common-dir`, then identify the one worktree whose `git -C "<path>" rev-parse --path-format=absolute --git-dir` equals it. That is the primary repository; never identify it from its branch alone or substitute a temporary detached release worktree. If no unique primary worktree exists, stop and report the worktree list.
+   - Require that primary worktree to be checked out on `<default-branch>` and clean with `git -C "<primary-worktree>" status --porcelain`. Then pull the latest default-branch changes with `git -C "<primary-worktree>" pull --ff-only origin "<default-branch>"`. Do not switch branches, stash, reset, overwrite local work, or bypass a non-fast-forward update.
+   - Verify that its `HEAD` equals `origin/<default-branch>` and that `release_commit` is an ancestor of `HEAD`. Record the primary-worktree path and resulting `HEAD`. This synchronization is a hard precondition for moving `changeRoot`; if it fails, leave the change active.
+
 6. **Perform the archive**
 
    Create an `archive` directory under `planningHome.changesDir` if it doesn't exist:
@@ -114,6 +120,7 @@ Archive a completed change in the experimental workflow.
    - Change name and schema
    - Merged PR URL and closed issue URL
    - Bumped version, release tag, release URL, and release commit
+   - Primary main worktree path and synchronized HEAD
    - Archive location and spec-sync status
    - Any confirmed warnings (incomplete artifacts/tasks)
 
@@ -128,6 +135,7 @@ Archive a completed change in the experimental workflow.
 **Issue:** <closed-issue-url>
 **Release:** <tag> — <release-url>
 **Version:** <old-version> → <new-version> at <release-commit>
+**Primary worktree:** <primary-worktree> synchronized at <primary-worktree-head>
 **Archived to:** <planningHome.changesDir>/archive/YYYY-MM-DD-<name>/
 **Specs:** ✓ Synced to main specs (or "No delta specs" or "Sync skipped")
 
@@ -141,4 +149,5 @@ All publication checks passed. All artifacts and tasks are complete.
 - Preserve `.openspec.yaml` when moving the directory
 - Never guess an associated PR, version source, release command, or version bump type
 - Never archive, tag, or create a release after a failed PR merge, issue closure, version bump, push, or release verification
+- Never move the change until the primary main worktree has cleanly fast-forwarded to the latest default branch
 - If delta specs exist, always assess sync state and show the combined summary before prompting
