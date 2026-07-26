@@ -58,18 +58,7 @@ Create a complete OpenSpec proposal in its own worktree, publish the planning ar
      openspec validate "<name>" --type change --strict
      ```
 
-5. **Commit and push only the planning artifacts**
-   Stage only the change directory under the worktree's `openspec/changes/` tree. Do not stage unrelated files.
-   ```bash
-   git add -- "openspec/changes/<name>"
-   git diff --cached --quiet && exit 1
-   git commit -m "docs(openspec): propose <name>"
-   git push --set-upstream origin "<name>"
-   ```
-
-   If the commit or push fails, stop. Leave the worktree and branch in place for recovery; do not create an issue or pull request.
-
-6. **Create the GitHub planning issue**
+5. **Create the GitHub planning issue and record its metadata**
    Build an issue body from the completed artifacts. It MUST include:
    - The change name, branch, and worktree path.
    - The proposal's why and what-changes summary.
@@ -77,13 +66,30 @@ Create a complete OpenSpec proposal in its own worktree, publish the planning ar
    - The capabilities/specifications created.
    - The task outline.
 
-   Create the issue non-interactively and record its URL and number:
+   Create the issue non-interactively and record its canonical URL and number:
    ```bash
    issue_url="$(gh issue create --title "Plan: <name>" --body-file "$issue_body")"
    issue_number="$(gh issue view "$issue_url" --json number --jq '.number')"
    ```
 
-   Use a temporary `issue_body` file outside the worktree or remove it before committing. Do not put credentials or unrelated repository content in the issue.
+   Write `github-issue.json` inside the change root before committing:
+   ```json
+   {
+     "issue": "<canonical issue URL>"
+   }
+   ```
+   Use a temporary `issue_body` file outside the worktree or remove it before committing. Do not put credentials or unrelated repository content in the issue. If issue creation or metadata writing fails, stop before committing or pushing.
+
+6. **Commit and push only the planning artifacts**
+   Stage only the change directory under the worktree's `openspec/changes/` tree, including `github-issue.json`. Do not stage unrelated files.
+   ```bash
+   git add -- "openspec/changes/<name>"
+   git diff --cached --quiet && exit 1
+   git commit -m "docs(openspec): propose <name>"
+   git push --set-upstream origin "<name>"
+   ```
+
+   If the commit or push fails, stop. Leave the worktree and branch in place for recovery; do not create a pull request.
 
 7. **Create the planning pull request**
    Build a PR body that links the issue with `Closes #<issue_number>` and lists every committed planning artifact. Then create the PR against the default branch:
@@ -108,7 +114,7 @@ Create a complete OpenSpec proposal in its own worktree, publish the planning ar
 ## Guardrails
 
 - Never run this workflow in the original worktree after creating the sibling worktree.
-- Never create an issue or PR until OpenSpec validation, the planning-artifact commit, and the push all succeed.
+- Never create an issue until OpenSpec validation succeeds, or a pull request until the issue metadata, planning-artifact commit, and push all succeed.
 - Never include implementation code in the planning commit.
 - Never force-push, overwrite an existing branch, or reuse an existing worktree directory.
 - If the user cancels, stop immediately and leave any already-created local worktree intact.

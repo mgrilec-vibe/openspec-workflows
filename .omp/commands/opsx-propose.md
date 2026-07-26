@@ -1,13 +1,5 @@
 ---
-name: openspec-propose
-description: Propose a new change with all artifacts generated in one step. Use when the user wants to quickly describe what they want to build and get a complete proposal with design, specs, and tasks ready for implementation.
-allowed-tools: Bash(openspec:*), Bash(gh:*)
-license: MIT
-compatibility: Requires openspec CLI.
-metadata:
-  author: openspec
-  version: "1.0"
-  generatedBy: "1.6.0"
+description: Propose a new change - create it and generate all artifacts in one step
 ---
 
 Propose a new change - create the change and generate all artifacts in one step.
@@ -18,19 +10,20 @@ I'll create a change with artifacts:
 - tasks.md (implementation steps)
 - github-issue.json (the existing GitHub issue reference)
 
-When ready to implement, ask me to implement the change.
+When ready to implement, run /opsx-apply
 
 ---
 
 **Store selection:** If the user names a store (a store is a standalone OpenSpec repo registered on this machine) or the work lives in one, run `openspec store list --json` to discover registered store ids, then pass `--store <id>` on the commands that read or write specs and changes (`new change`, `status`, `instructions`, `list`, `show`, `validate`, `archive`, `doctor`, `context`). Other commands do not take the flag. Hints printed by commands already carry the flag; keep it on follow-ups. Without a store, commands act on the nearest local `openspec/` root.
 
-**Input**: The user's request should include a change name (kebab-case) OR a description of what they want to build.
+**Input**: The argument after `/opsx-propose` is the change name (kebab-case), OR a description of what the user wants to build.
+**Provided arguments**: $@
 
 **Steps**
 
-1. **If no clear input provided, ask what they want to build**
+1. **If no input provided, ask what they want to build**
 
-   Ask the user an open-ended question:
+   Use the **AskUserQuestion tool** (open-ended, no preset options) to ask:
    > "What change do you want to work on? Describe what you want to build or fix."
 
    From their description, derive a kebab-case name (e.g., "add user authentication" → `add-user-auth`).
@@ -91,7 +84,7 @@ When ready to implement, ask me to implement the change.
       - Stop when all `applyRequires` artifacts are done
 
    c. **If an artifact requires user input** (unclear context):
-      - Ask the user to clarify
+      - Use **AskUserQuestion tool** to clarify
       - Then continue with creation
 
 6. **Show final status**
@@ -106,7 +99,7 @@ After completing all artifacts, summarize:
 - List of artifacts created with brief descriptions
 - What's ready: "All artifacts created! Ready for implementation."
 - The verified GitHub issue URL and the `github-issue.json` location
-- Prompt: "All artifacts created! Ask me to implement the change to start working on the tasks."
+- Prompt: "Run `/opsx-apply` to start implementing."
 
 **Artifact Creation Guidelines**
 

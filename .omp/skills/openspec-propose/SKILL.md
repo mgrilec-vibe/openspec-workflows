@@ -18,7 +18,7 @@ I'll create a change with artifacts:
 - tasks.md (implementation steps)
 - github-issue.json (the existing GitHub issue reference)
 
-When ready to implement, ask me to implement the change.
+When ready to implement, run /opsx-apply
 
 ---
 
@@ -30,7 +30,7 @@ When ready to implement, ask me to implement the change.
 
 1. **If no clear input provided, ask what they want to build**
 
-   Ask the user an open-ended question:
+   Use the **AskUserQuestion tool** (open-ended, no preset options) to ask:
    > "What change do you want to work on? Describe what you want to build or fix."
 
    From their description, derive a kebab-case name (e.g., "add user authentication" → `add-user-auth`).
@@ -91,7 +91,7 @@ When ready to implement, ask me to implement the change.
       - Stop when all `applyRequires` artifacts are done
 
    c. **If an artifact requires user input** (unclear context):
-      - Ask the user to clarify
+      - Use **AskUserQuestion tool** to clarify
       - Then continue with creation
 
 6. **Show final status**
@@ -106,7 +106,7 @@ After completing all artifacts, summarize:
 - List of artifacts created with brief descriptions
 - What's ready: "All artifacts created! Ready for implementation."
 - The verified GitHub issue URL and the `github-issue.json` location
-- Prompt: "All artifacts created! Ask me to implement the change to start working on the tasks."
+- Prompt: "Run `/opsx-apply` or ask me to implement to start working on the tasks."
 
 **Artifact Creation Guidelines**
 
