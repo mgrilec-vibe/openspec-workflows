@@ -6,4 +6,4 @@
 ## 2. Verification and delivery
 
 - [x] 2.1 Run OpenSpec validation and inspect source workflow inventories for the single canonical proposal entrypoint.
-- [ ] 2.2 Commit and push the completed planning and implementation changes.
+- [x] 2.2 Commit and push the completed planning and implementation changes.
