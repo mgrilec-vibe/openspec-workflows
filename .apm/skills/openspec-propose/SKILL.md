@@ -1,145 +1,123 @@
 ---
 name: openspec-propose
-description: Propose a new change with all artifacts generated in one step. Use when the user wants to quickly describe what they want to build and get a complete proposal with design, specs, and tasks ready for implementation.
-allowed-tools: Bash(openspec:*), Bash(gh:*)
+description: Create a fully planned OpenSpec change in a sibling Git worktree, then open a GitHub planning issue and pull request. Use when the user wants an isolated proposal branch and reviewable planning artifacts.
+allowed-tools: Bash(openspec:*), Bash(git:*), Bash(gh:*)
 license: MIT
-compatibility: Requires openspec CLI.
+compatibility: Requires Git, GitHub CLI authentication, and the OpenSpec CLI.
 metadata:
-  author: openspec
-  version: "1.0"
-  generatedBy: "1.6.0"
+  author: openspec-workflows
+  version: "1.1.0"
 ---
 
-Propose a new change - create the change and generate all artifacts in one step.
+Create a complete OpenSpec proposal in its own worktree, publish the planning artifacts on a branch named for the change, and open a linked GitHub issue and pull request.
 
-I'll create a change with artifacts:
-- proposal.md (what & why)
-- design.md (how)
-- tasks.md (implementation steps)
-- github-issue.json (the planning GitHub issue reference)
+**Input:** A change name in kebab-case or a description of the requested work.
 
-When ready to implement, ask me to implement the change.
+## Workflow
 
----
+1. **Resolve the change name**
+   - If the user supplies a kebab-case name, use it.
+   - Otherwise, derive a concise kebab-case name from the request.
+   - If the request is unclear, ask the user to clarify before making any Git or GitHub changes.
+   - Announce: `Using change: <name>`.
 
-**Store selection:** If the user names a store (a store is a standalone OpenSpec repo registered on this machine) or the work lives in one, run `openspec store list --json` to discover registered store ids, then pass `--store <id>` on the commands that read or write specs and changes (`new change`, `status`, `instructions`, `list`, `show`, `validate`, `archive`, `doctor`, `context`). Other commands do not take the flag. Hints printed by commands already carry the flag; keep it on follow-ups. Without a store, commands act on the nearest local `openspec/` root.
-
-**Input**: The user's request should include a change name (kebab-case) OR a description of what they want to build.
-
-**Steps**
-
-1. **If no clear input provided, ask what they want to build**
-
-   Ask the user an open-ended question:
-   > "What change do you want to work on? Describe what you want to build or fix."
-
-   From their description, derive a kebab-case name (e.g., "add user authentication" → `add-user-auth`).
-
-   **IMPORTANT**: Do NOT proceed without understanding what the user wants to build.
-
-2. **Create the change directory**
+2. **Preflight the repository and GitHub access**
+   Run these commands from the repository that will receive the proposal:
    ```bash
-   openspec new change "<name>"
+   repo_root="$(git rev-parse --show-toplevel)"
+   repo_name="$(basename "$repo_root")"
+   base_branch="$(gh repo view --json defaultBranchRef --jq '.defaultBranchRef.name')"
+   worktree_path="$(dirname "$repo_root")/${repo_name}-<name>"
+   gh auth status
+   git fetch origin "$base_branch"
    ```
-   This creates a scaffolded change in the planning home resolved by the CLI with `.openspec.yaml`.
 
-3. **Get the artifact build order**
+   Before continuing, verify all of the following:
+   - `gh auth status` succeeds for the repository's GitHub host.
+   - `<name>` does not already exist as a local branch or a branch on `origin`.
+   - `worktree_path` does not already exist.
+   - The planning home reported by OpenSpec is repository-local; this workflow only commits artifacts inside the new worktree.
+
+   If any check fails, stop and explain the conflict. Never overwrite a branch or worktree.
+
+3. **Create the isolated branch and worktree**
+   From `repo_root`, create both from the remote default branch:
    ```bash
-   openspec status --change "<name>" --json
+   git worktree add -b "<name>" "$worktree_path" "origin/$base_branch"
    ```
-   Parse the JSON to get:
-   - `applyRequires`: array of artifact IDs needed before implementation (e.g., `["tasks"]`)
-   - `artifacts`: list of all artifacts with their status and dependencies
-   - `planningHome`, `changeRoot`, `artifactPaths`, and `actionContext`: path and scope context. Use these instead of assuming repo-local paths.
 
+   The branch name MUST exactly equal `<name>`. The sibling directory MUST be `${repo_name}-<name>`.
 
-4. **Create artifacts in sequence until apply-ready**
+4. **Create all OpenSpec planning artifacts in the worktree**
+   - Change into `worktree_path`.
+   - Follow the artifact-creation workflow for the selected `<name>`; do not create another worktree or branch.
+   - Create every artifact required by the active schema for implementation.
+   - Re-run `openspec status --change "<name>" --json` until every `applyRequires` artifact has status `done`.
+   - Confirm `planningHome.kind` is `repo` and that the reported `changeRoot` is below `worktree_path`. If either check fails, stop before any GitHub operation.
+   - Validate the completed plan:
+     ```bash
+     openspec validate "<name>" --type change --strict
+     ```
 
-   Use the **TodoWrite tool** to track progress through the artifacts.
+5. **Create the GitHub planning issue and record its metadata**
+   Build an issue body from the completed artifacts. It MUST include:
+   - The change name, branch, and worktree path.
+   - The proposal's why and what-changes summary.
+   - Design decisions and trade-offs, when present.
+   - The capabilities/specifications created.
+   - The task outline.
+   - Planned verification derived from the specification scenarios.
 
-   Loop through artifacts in dependency order (artifacts with no pending dependencies first):
-
-   a. **For each artifact that is `ready` (dependencies satisfied)**:
-      - Get instructions:
-        ```bash
-        openspec instructions <artifact-id> --change "<name>" --json
-        ```
-      - The instructions JSON includes:
-        - `context`: Project background (constraints for you - do NOT include in output)
-        - `rules`: Artifact-specific rules (constraints for you - do NOT include in output)
-        - `template`: The structure to use for your output file
-        - `instruction`: Schema-specific guidance for this artifact type
-        - `resolvedOutputPath`: Resolved path or pattern to write the artifact
-        - `dependencies`: Completed artifacts to read for context
-      - Read any completed dependency files for context
-      - Create the artifact file using `template` as the structure and write it to `resolvedOutputPath`
-      - Apply `context` and `rules` as constraints - but do NOT copy them into the file
-      - Show brief progress: "Created <artifact-id>"
-
-   b. **Continue until all `applyRequires` artifacts are complete**
-      - After creating each artifact, re-run `openspec status --change "<name>" --json`
-      - Check if every artifact ID in `applyRequires` has `status: "done"` in the artifacts array
-      - Stop when all `applyRequires` artifacts are done
-
-   c. **If an artifact requires user input** (unclear context):
-      - Ask the user to clarify
-      - Then continue with creation
-
-5. **Create the planning GitHub issue and metadata**
-
-   After every `applyRequires` artifact is complete, create the GitHub issue before any implementation begins. Build a Markdown body from the completed planning artifacts with this structure:
-   ```markdown
-   ## Plan: <change-name>
-   ### Context and motivation
-   ### Proposed behavior and capabilities
-   ### Design decisions and trade-offs
-   ### Implementation plan
-   ### Planned verification
-   ### Planning artifacts
-   ```
-   The body describes only the proposed change: use the proposal for motivation and intended behavior, specifications for capabilities and scenarios, design for decisions and trade-offs, tasks for the implementation plan, and the change path plus artifact names for **Planning artifacts**. Do not claim delivered behavior, completed tasks, or verification results. When an artifact contains no source-backed content for a section, write `_Not specified in the plan._` rather than inventing detail.
-
-   Write the rendered body to a temporary file outside the worktree, then create the issue:
+   Create the issue non-interactively and record its canonical URL and number:
    ```bash
    issue_url="$(gh issue create --title "Plan: <name>" --body-file "$issue_body")"
-   gh issue view "$issue_url" --json url,number
+   issue_number="$(gh issue view "$issue_url" --json number --jq '.number')"
    ```
-   Write `<changeRoot>/github-issue.json` with the canonical issue URL:
+
+   Write `github-issue.json` inside the change root before committing:
    ```json
    {
      "issue": "<canonical issue URL>"
    }
    ```
-   Remove the temporary body file after creation. If a valid `github-issue.json` already exists for a resumed change, parse it and verify that its issue resolves with `gh issue view <issue-reference> --json url,state` and has state `OPEN`; only then keep it. Otherwise stop and report the conflict rather than creating or attaching a duplicate issue.
+   Use a temporary `issue_body` file outside the worktree or remove it before committing. Do not put credentials or unrelated repository content in the issue. If issue creation or metadata writing fails, stop before committing or pushing.
 
-6. **Show final status**
+6. **Commit and push only the planning artifacts**
+   Stage only the change directory under the worktree's `openspec/changes/` tree, including `github-issue.json`. Do not stage unrelated files.
    ```bash
-   openspec status --change "<name>"
+   git add -- "openspec/changes/<name>"
+   git diff --cached --quiet && exit 1
+   git commit -m "docs(openspec): propose <name>"
+   git push --set-upstream origin "<name>"
    ```
 
-**Output**
+   If the commit or push fails, stop. Leave the worktree and branch in place for recovery; do not create a pull request.
 
-After completing all artifacts, summarize:
-- Change name and location
-- List of artifacts created with brief descriptions
-- What's ready: "All artifacts created! Ready for implementation."
-- The created planning issue URL and the `github-issue.json` location
-- Prompt: "All artifacts created! Ask me to implement the change to start working on the tasks."
+7. **Create the planning pull request**
+   Build a PR body that links the issue with `Closes #<issue_number>` and lists every committed planning artifact. Then create the PR against the default branch:
+   ```bash
+   gh pr create \
+     --base "$base_branch" \
+     --head "<name>" \
+     --title "docs(openspec): propose <name>" \
+     --body-file "$pr_body"
+   ```
 
-**Artifact Creation Guidelines**
+   Use a temporary `pr_body` file and remove it afterward. If a PR for `<name>` already exists, report its URL instead of creating a duplicate.
 
-- Follow the `instruction` field from `openspec instructions` for each artifact type
-- The schema defines what each artifact should contain - follow it
-- Read dependency artifacts for context before creating new ones
-- Use `template` as the structure for your output file - fill in its sections
-- **IMPORTANT**: `context` and `rules` are constraints for YOU, not content for the file
-  - Do NOT copy `<context>`, `<rules>`, `<project_context>` blocks into the artifact
-  - These guide what you write, but should never appear in the output
+8. **Report the handoff**
+   Show:
+   - Change name and worktree path.
+   - Branch and base branch.
+   - Created planning artifacts.
+   - Issue URL and PR URL.
+   - Next step: implement in the retained worktree.
 
-**Guardrails**
-- Create ALL artifacts needed for implementation (as defined by schema's `apply.requires`)
-- Always read dependency artifacts before creating a new one
-- If context is critically unclear, ask the user - but prefer making reasonable decisions to keep momentum
-- If a change with that name already exists, ask if user wants to continue it or create a new one
-- Verify each artifact file exists after writing before proceeding to next
-- Every proposed change MUST create or retain exactly one valid `github-issue.json` containing the canonical URL of its planning issue.
+## Guardrails
+
+- Never run this workflow in the original worktree after creating the sibling worktree.
+- Never create an issue until OpenSpec validation succeeds, or a pull request until the issue metadata, planning-artifact commit, and push all succeed.
+- Never include implementation code in the planning commit.
+- Never force-push, overwrite an existing branch, or reuse an existing worktree directory.
+- If the user cancels, stop immediately and leave any already-created local worktree intact.
+- Keep the worktree after PR creation so implementation can continue there.
