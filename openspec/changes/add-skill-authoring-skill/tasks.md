@@ -4,4 +4,4 @@
 
 ## 2. Validation
 
-- [ ] 2.1 Validate the packaged skill's Agent Skills structure, metadata, discovery boundaries, and required evaluation guidance.
+- [x] 2.1 Validate the packaged skill's Agent Skills structure, metadata, discovery boundaries, and required evaluation guidance.
