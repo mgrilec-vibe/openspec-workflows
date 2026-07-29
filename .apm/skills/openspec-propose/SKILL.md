@@ -54,6 +54,12 @@ Create a complete OpenSpec proposal in its own worktree, publish the planning ar
    - Create every artifact required by the active schema for implementation.
    - Re-run `openspec status --change "<name>" --json` until every `applyRequires` artifact has status `done`.
    - Confirm `planningHome.kind` is `repo` and that the reported `changeRoot` is below `worktree_path`. If either check fails, stop before any GitHub operation.
+   - The completed `design.md` MUST contain a `## Change Boundaries` section with these four entries:
+     - **Provides:** models, APIs, invariants, or behaviors it introduces.
+     - **Consumes:** existing contracts it relies on.
+     - **Touches:** capability specs and code areas likely to overlap.
+     - **Non-goals:** adjacent responsibilities it deliberately does not own.
+   - Make each entry concrete for the proposed change. Name repository-relative files or directories under **Touches** when they can be identified during planning; write `None` with a short reason when an entry does not apply. Never omit an entry.
    - Validate the completed plan:
      ```bash
      openspec validate "<name>" --type change --strict
@@ -67,6 +73,7 @@ Create a complete OpenSpec proposal in its own worktree, publish the planning ar
    - The capabilities/specifications created.
    - The task outline.
    - Planned verification derived from the specification scenarios.
+   - The design's complete Provides, Consumes, Touches, and Non-goals boundary summary.
 
    Create the issue non-interactively and record its canonical URL and number:
    ```bash
@@ -95,6 +102,7 @@ Create a complete OpenSpec proposal in its own worktree, publish the planning ar
 
 7. **Create the planning pull request**
    Build a PR body that links the issue with `Closes #<issue_number>` and lists every committed planning artifact. Then create the PR against the default branch:
+   - The PR body MUST reproduce the design's complete Provides, Consumes, Touches, and Non-goals boundary summary so parallel changes can be compared without opening every artifact.
    ```bash
    gh pr create \
      --base "$base_branch" \
