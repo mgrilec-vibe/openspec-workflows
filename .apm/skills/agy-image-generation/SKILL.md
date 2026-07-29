@@ -20,7 +20,7 @@ Use the OMP `agy_generate_image` custom tool to generate one new image through t
 ## Inputs and output
 
 - **Input:** a concise visual brief: subject, action, scene, composition, lighting, style, and any required readable text.
-- **Output:** one verified absolute JPEG, PNG, or WebP file path under the local Antigravity brain directory.
+- **Output:** one verified absolute JPEG, PNG, or WebP file path returned by `agy`.
 
 ## Procedure
 

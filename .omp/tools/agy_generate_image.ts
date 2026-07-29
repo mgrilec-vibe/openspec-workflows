@@ -1,6 +1,5 @@
 import { promises as fs } from "node:fs";
-import { homedir } from "node:os";
-import { extname, isAbsolute, relative, resolve } from "node:path";
+import { extname, isAbsolute } from "node:path";
 
 const IMAGE_EXTENSIONS: Record<string, true> = {
   ".jpg": true,
@@ -13,7 +12,6 @@ const IMAGE_MIME_TYPES: Record<string, true> = {
   "image/png": true,
   "image/webp": true,
 };
-const BRAIN_DIRECTORY = resolve(homedir(), ".gemini", "antigravity-cli", "brain");
 const OUTPUT_INSTRUCTION =
   "write the generated image to disk and output only one absolute image path, no prose/Markdown.";
 
@@ -36,10 +34,6 @@ type CustomToolApi = {
   exec(command: string, args: string[], options?: { signal?: AbortSignal }): Promise<ExecResult>;
 };
 
-function isWithinDirectory(directory: string, candidate: string): boolean {
-  const relativePath = relative(directory, candidate);
-  return relativePath === "" || (!relativePath.startsWith("..") && !isAbsolute(relativePath));
-}
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -90,33 +84,12 @@ export default function agyGenerateImage(pi: CustomToolApi) {
         );
       }
 
-      let brainDirectory: string;
-      try {
-        brainDirectory = await fs.realpath(BRAIN_DIRECTORY);
-      } catch (error) {
-        throw new Error(
-          `image path validation failed: could not resolve the allowed brain directory ${BRAIN_DIRECTORY}: ${errorMessage(error)}`,
-        );
-      }
-
-      const absoluteImagePath = resolve(imagePath);
-      if (!isWithinDirectory(brainDirectory, absoluteImagePath)) {
-        throw new Error(
-          `image path validation failed: generated path ${absoluteImagePath} is outside ${brainDirectory}.`,
-        );
-      }
-
       let resolvedImagePath: string;
       try {
-        resolvedImagePath = await fs.realpath(absoluteImagePath);
+        resolvedImagePath = await fs.realpath(imagePath);
       } catch (error) {
         throw new Error(
-          `image file existence validation failed: could not resolve generated path ${absoluteImagePath}: ${errorMessage(error)}`,
-        );
-      }
-      if (!isWithinDirectory(brainDirectory, resolvedImagePath)) {
-        throw new Error(
-          `image path validation failed: generated path resolves outside ${brainDirectory} (possible symlink escape).`,
+          `image file existence validation failed: could not resolve generated path ${imagePath}: ${errorMessage(error)}`,
         );
       }
 
