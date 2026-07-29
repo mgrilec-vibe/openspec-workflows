@@ -54,6 +54,8 @@ Archive a completed change in the experimental workflow.
 
    **If no tasks file exists:** Proceed without task-related warning.
 
+**Primary-worktree preflight:** Before assessing or synchronizing delta specs, identify the unique primary worktree from `git worktree list --porcelain` and the absolute common Git directory. Require it to be checked out on the default branch and clean. If it is dirty, report every changed path and stop; do not assess specs, merge a PR, close an issue, publish a release, or archive the change.
+
 4. **Assess delta spec sync state**
 
    Use `artifactPaths.specs.existingOutputPaths` from status JSON to check for delta specs. If none exist, proceed without sync prompt.
@@ -68,10 +70,12 @@ Archive a completed change in the experimental workflow.
    - If already synced: "Archive now", "Sync anyway", "Cancel"
 
    If the user chooses "Cancel", stop without archiving. If the user chooses sync, follow the `openspec-sync-specs` workflow for the change and include the delta-spec analysis; archive only after it completes. Otherwise, archive without syncing.
+   - If synchronization writes canonical specs, perform it in the verified change worktree, run strict change validation, commit and push only the expected canonical-spec paths, and require that commit to be present in the associated PR head before merging. Recheck mergeability and applicable PR CI for that new head. Never synchronize specs in the primary worktree or leave synchronization as an uncommitted local edit.
 
 5. **Publish the change before archiving**
 
    Publication is a hard precondition. Do not move `changeRoot` until the pull request is merged, the issue is closed, the default branch contains a version-bump commit, and a GitHub release points at that commit. If any step fails, report its exact state and leave the change active; never create a release from an unmerged PR or archive a partially published change.
+   Before resolving traceability or changing GitHub state, identify the unique primary worktree from `git worktree list --porcelain` and the absolute common Git directory. Require it to be on the default branch and clean. A dirty primary worktree blocks PR merge, issue closure, release publication, and archive; report changed paths and stop without touching them.
 
    a. **Resolve GitHub traceability**
 
@@ -108,7 +112,8 @@ Archive a completed change in the experimental workflow.
    c. **Synchronize the primary main worktree**
 
    - Use `git worktree list --porcelain` to enumerate attached worktrees. Compute the absolute common Git directory with `git rev-parse --path-format=absolute --git-common-dir`, then identify the one worktree whose `git -C "<path>" rev-parse --path-format=absolute --git-dir` equals it. That is the primary repository; never identify it from its branch alone or substitute a temporary detached release worktree. If no unique primary worktree exists, stop and report the worktree list.
-   - Require that primary worktree to be checked out on `<default-branch>` and clean with `git -C "<primary-worktree>" status --porcelain`. Then pull the latest default-branch changes with `git -C "<primary-worktree>" pull --ff-only origin "<default-branch>"`. Do not switch branches, stash, reset, overwrite local work, or bypass a non-fast-forward update.
+   - Require that primary worktree to be checked out on `<default-branch>` and clean with `git -C "<primary-worktree>" status --porcelain`. If it is dirty, stop. Report every changed path as unrelated until its owning change is independently established. Never stage, commit, rebase, reset, stash, delete, or push primary-worktree changes as archive cleanup.
+   - Then pull the latest default-branch changes with `git -C "<primary-worktree>" pull --ff-only origin "<default-branch>"`. Do not switch branches, stash, reset, overwrite local work, or bypass a non-fast-forward update.
    - Verify that its `HEAD` equals `origin/<default-branch>` and that `release_commit` is an ancestor of `HEAD`. Record the primary-worktree path and resulting `HEAD`. This synchronization is a hard precondition for moving `changeRoot`; if it fails, leave the change active.
 
 6. **Perform the archive**
@@ -157,13 +162,14 @@ All publication checks passed. All artifacts and tasks are complete.
 ```
 
 **Guardrails**
-- Always prompt for change selection if not provided
-- Use artifact graph for completion checking
-- Don't block archive on artifact/task warnings, but do require publication to succeed
-- Preserve `.openspec.yaml` when moving the directory
-- Never guess an associated PR, version source, release command, or version bump type
-- Never archive, tag, or create a release after a failed PR merge, issue closure, version bump, push, or release verification
-- Never move the change until the primary main worktree has cleanly fast-forwarded to the latest default branch
-- Never merge an implementation PR without first persisting the Implementation Summary section in its description
-- Never merge an implementation PR before inspecting its conflicts and, when defined, all applicable PR CI; resolve only mechanical conflicts and stop for any conflict requiring a decision
-- If delta specs exist, always assess sync state and show the combined summary before prompting
+- Always prompt for change selection if not provided.
+- Use artifact graph for completion checking.
+- Don't block archive on artifact/task warnings, but do require publication to succeed.
+- Preserve `.openspec.yaml` when moving the directory.
+- Never guess an associated PR, version source, release command, or version bump type.
+- Never archive, tag, or create a release after a failed PR merge, issue closure, version bump, push, or release verification.
+- Never move the change until the primary main worktree has cleanly fast-forwarded to the latest default branch.
+- A dirty primary worktree is a hard stop. Never preserve, publish, or absorb unrelated edits by committing, rebasing, resetting, stashing, deleting, or pushing them.
+- Never merge an implementation PR without first persisting the Implementation Summary section in its description.
+- Never merge an implementation PR before inspecting its conflicts and, when defined, all applicable PR CI; resolve only mechanical conflicts and stop for any conflict requiring a decision.
+- If delta specs exist, always assess sync state and show the combined summary before prompting.

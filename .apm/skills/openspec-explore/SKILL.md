@@ -1,7 +1,7 @@
 ---
 name: openspec-explore
 description: Enter explore mode - a thinking partner for exploring ideas, investigating problems, and clarifying requirements. Use when the user wants to think through something before or during a change.
-allowed-tools: Bash(openspec:*)
+allowed-tools: Bash(openspec:*), Bash(git:*)
 license: MIT
 compatibility: Requires openspec CLI.
 metadata:
@@ -12,9 +12,11 @@ metadata:
 
 Enter explore mode. Think deeply. Visualize freely. Follow the conversation wherever it goes.
 
-**IMPORTANT: Explore mode is for thinking, not implementing.** You may read files, search code, and investigate the codebase, but you must NEVER write code or implement features. If the user asks you to implement something, remind them to exit explore mode first and create a change proposal. You MAY create OpenSpec artifacts (proposals, designs, specs) if the user asks—that's capturing thinking, not implementing.
+**IMPORTANT: Explore mode is read-only.** You may read files, search code, and investigate the codebase, but you MUST NOT write code, canonical specifications, OpenSpec artifacts, or any tracked repository file. If the user wants to capture decisions, summarize them and ask them to exit explore mode for `openspec-propose` (new change) or `openspec-update-change` (existing change).
 
 **This is a stance, not a workflow.** There are no fixed steps, no required sequence, no mandatory outputs. You're a thinking partner helping the user explore.
+
+**Repository baseline:** In a Git repository, record `git status --porcelain=v2 -uall`, `git diff --binary HEAD`, and a `git hash-object` result for every untracked path when entering explore mode. Recheck and compare all three before handing off or yielding. If any tracked or untracked path changed during exploration, report it as a workflow violation and stop without staging, resetting, stashing, deleting, or otherwise cleaning it.
 
 **Store selection:** If the user names a store (a store is a standalone OpenSpec repo registered on this machine) or the work lives in one, run `openspec store list --json` to discover registered store ids, then pass `--store <id>` on the commands that read or write specs and changes (`new change`, `status`, `instructions`, `list`, `show`, `validate`, `archive`, `doctor`, `context`). Other commands do not take the flag. Hints printed by commands already carry the flag; keep it on follow-ups. Without a store, commands act on the nearest local `openspec/` root.
 
@@ -114,23 +116,12 @@ If the user mentions a change or you detect one is relevant:
    - "Your design mentions using Redis, but we just realized SQLite fits better..."
    - "The proposal scopes this to premium users, but we're now thinking everyone..."
 
-3. **Offer to capture when decisions are made**
+3. **Offer a handoff when decisions are made**
 
-    | Insight Type               | Where to Capture               |
-    |----------------------------|--------------------------------|
-    | New requirement discovered | `specs/<capability>/spec.md` |
-    | Requirement changed        | `specs/<capability>/spec.md` |
-    | Design decision made       | `design.md`                  |
-    | Scope changed              | `proposal.md`                |
-    | New work identified        | `tasks.md`                   |
-    | Assumption invalidated     | Relevant artifact              |
-
-   Example offers:
-   - "That's a design decision. Capture it in design.md?"
-   - "This is a new requirement. Add it to specs?"
-   - "This changes scope. Update the proposal?"
-
-4. **The user decides** - Offer and move on. Don't pressure. Don't auto-capture.
+   - For a new change, offer to exit explore mode and invoke `openspec-propose`.
+   - For an existing change, offer to exit explore mode and invoke `openspec-update-change`.
+   - Summarize the exact requirement, design, scope, task, or assumption change for the next workflow.
+   - Never auto-capture or edit an artifact from explore mode.
 
 ---
 
@@ -254,8 +245,7 @@ You: That changes everything.
 There's no required ending. Discovery might:
 
 - **Flow into a proposal**: "Ready to start? I can create a change proposal."
-- **Result in artifact updates**: "Updated design.md with these decisions"
-- **Just provide clarity**: User has what they need, moves on
+- **Result in a handoff summary**: Record the decisions to capture through `openspec-propose` or `openspec-update-change`.
 - **Continue later**: "We can pick this up anytime"
 
 When it feels like things are crystallizing, you might summarize:
@@ -280,11 +270,11 @@ But this summary is optional. Sometimes the thinking IS the value.
 
 ## Guardrails
 
-- **Don't implement** - Never write code or implement features. Creating OpenSpec artifacts is fine, writing application code is not.
-- **Don't fake understanding** - If something is unclear, dig deeper
-- **Don't rush** - Discovery is thinking time, not task time
-- **Don't force structure** - Let patterns emerge naturally
-- **Don't auto-capture** - Offer to save insights, don't just do it
-- **Do visualize** - A good diagram is worth many paragraphs
-- **Do explore the codebase** - Ground discussions in reality
-- **Do question assumptions** - Including the user's and your own
+- **Read-only means no repository writes** - Never write code, canonical specs, change artifacts, task lists, or any other tracked file. Do not create a worktree, branch, issue, pull request, or commit.
+- **Don't fake understanding** - If something is unclear, dig deeper.
+- **Don't rush** - Discovery is thinking time, not task time.
+- **Don't force structure** - Let patterns emerge naturally.
+- **Do not auto-capture** - Offer the appropriate follow-on workflow and provide a precise handoff summary.
+- **Do visualize** - A good diagram is worth many paragraphs.
+- **Do explore the codebase** - Ground discussions in reality.
+- **Do question assumptions** - Including the user's and your own.

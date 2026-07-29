@@ -27,6 +27,15 @@ Implement tasks from an OpenSpec change.
 
    Always announce: "Using change: <name>". To use another change, name it in your request.
 
+   Before reading or editing the change, verify the active worktree:
+   ```bash
+   worktree_root="$(git rev-parse --show-toplevel)"
+   active_branch="$(git branch --show-current)"
+   printf 'worktree=%s\nbranch=%s\n' "$worktree_root" "$active_branch"
+   git status --short
+   ```
+   Record this baseline. After Step 2 returns `planningHome`, `changeRoot`, and `actionContext.allowedEditRoots`, resolve each to an absolute path and require it to equal `worktree_root` or begin with `worktree_root/`. If any path resolves outside the current worktree, or if pre-existing changes are not clearly owned by the selected change, stop before editing. Do not switch worktrees, stage, stash, reset, commit, or otherwise absorb unrelated changes.
+
 2. **Check status to understand the schema**
    ```bash
    openspec status --change "<name>" --json
@@ -35,6 +44,7 @@ Implement tasks from an OpenSpec change.
    - `schemaName`: The workflow being used (e.g., "spec-driven")
    - `planningHome`, `changeRoot`, and `actionContext`: planning scope and edit constraints
    - Which artifact contains the tasks (typically "tasks" for spec-driven, check status for others)
+   - Apply the same absolute-path containment check to `planningHome.root`, `changeRoot`, and every `actionContext.allowedEditRoot`. Require the active branch to be non-default and the current worktree not to be the unique primary worktree identified from the common Git directory. If any condition fails, stop before editing; do not use the primary default-branch worktree to apply a change.
 
 3. **Get apply instructions**
 
@@ -168,16 +178,18 @@ What would you like to do?
 ```
 
 **Guardrails**
-- Keep going through tasks until done or blocked
+- Keep going through tasks until done or blocked.
+- Before every edit, validation, commit, or push, confirm the current worktree root and branch are still the selected change's worktree and inspect `git status --short`.
+- If pre-existing changed paths are not clearly owned by the selected change, stop before staging or editing them. Never clean up, commit, rebase, reset, stash, or push unrelated work.
 - Commit and push every rounded work chunk before starting the next one; stage only that chunk's files.
 - Use `github-issue.json` only to resolve the already-created issue; never create or guess issues or PRs during apply.
-- Always read context files before starting (from the apply instructions output)
-- If task is ambiguous, pause and ask before implementing
-- If implementation reveals issues, pause and suggest artifact updates
-- Keep code changes minimal and scoped to each task
-- Update task checkbox immediately after completing each task
-- Pause on errors, blockers, or unclear requirements - don't guess
-- Use contextFiles from CLI output, don't assume specific file names
+- Always read context files before starting (from the apply instructions output).
+- If task is ambiguous, pause and ask before implementing.
+- If implementation reveals issues, pause and suggest artifact updates.
+- Keep code changes minimal and scoped to each task.
+- Update task checkbox immediately after completing each task.
+- Pause on errors, blockers, or unclear requirements - don't guess.
+- Use contextFiles from CLI output, don't assume specific file names.
 
 **Fluid Workflow Integration**
 

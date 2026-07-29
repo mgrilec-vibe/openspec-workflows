@@ -21,13 +21,16 @@ Create a complete OpenSpec proposal in its own worktree, publish the planning ar
    - If the request is unclear, ask the user to clarify before making any Git or GitHub changes.
    - Announce: `Using change: <name>`.
 
-2. **Preflight the repository and GitHub access**
+2. **Preflight the source worktree and GitHub access**
    Run these commands from the repository that will receive the proposal:
    ```bash
    repo_root="$(git rev-parse --show-toplevel)"
    repo_name="$(basename "$repo_root")"
+   source_branch="$(git branch --show-current)"
    base_branch="$(gh repo view --json defaultBranchRef --jq '.defaultBranchRef.name')"
    worktree_path="$(dirname "$repo_root")/${repo_name}-<name>"
+   printf 'source_worktree=%s\nsource_branch=%s\n' "$repo_root" "$source_branch"
+   git status --short
    gh auth status
    git fetch origin "$base_branch"
    ```
@@ -37,8 +40,18 @@ Create a complete OpenSpec proposal in its own worktree, publish the planning ar
    - `<name>` does not already exist as a local branch or a branch on `origin`.
    - `worktree_path` does not already exist.
    - The planning home reported by OpenSpec is repository-local; this workflow only commits artifacts inside the new worktree.
+   - The source worktree, source branch, and every pre-existing changed path are recorded before creating a worktree.
 
-   If any check fails, stop and explain the conflict. Never overwrite a branch or worktree.
+   **Handling source planning edits:**
+   - Never write planning artifacts in the source worktree. The sibling worktree is the only location for proposal artifacts.
+   - If it contains changed canonical specs under `openspec/specs/**`, show their diffs and ask whether each belongs to this proposal. Treat all other changed paths as user work and leave them untouched.
+   - Transfer is permitted only for individually confirmed **whole files** under `openspec/specs/**`. Record whether every selected path is tracked or untracked, save a binary `git diff --binary HEAD -- <confirmed-paths>` patch outside both worktrees for tracked paths, and record its checksum before creating the sibling.
+   - If a source file contains both proposal and unrelated edits, is not confirmed as a whole-file move, or is untracked without explicit deletion approval, stop and ask its owner to separate or resolve it. Do not infer ownership from its path.
+   - After creating the sibling worktree, translate each confirmed canonical-spec edit into the new change's delta spec at `openspec/changes/<name>/specs/<capability>/spec.md`. Do **not** copy a canonical spec into `openspec/specs/**` in the sibling: proposal commits stage only `openspec/changes/<name>`.
+   - Validate and commit the target's planning artifacts. Then, as the sole permitted return to the source worktree, move each confirmed source file: run `git restore --source=HEAD --staged --worktree -- <confirmed-tracked-paths>` for tracked files, and remove only individually confirmed untracked planning files. Require `git diff --quiet HEAD -- <confirmed-tracked-paths>`, `git diff --cached --quiet -- <confirmed-tracked-paths>`, and absence of each confirmed untracked path afterward. If translation, validation, commit, cleanup, or cleanup verification fails, stop and leave both worktrees intact.
+   - If any changed source path is unconfirmed or unrelated, report it but do not stage, move, reset, stash, commit, or delete it.
+
+   If an identity, ownership, or transfer check fails, stop and explain the conflict. Never overwrite a branch or worktree.
 
 3. **Create the isolated branch and worktree**
    From `repo_root`, create both from the remote default branch:
@@ -46,7 +59,14 @@ Create a complete OpenSpec proposal in its own worktree, publish the planning ar
    git worktree add -b "<name>" "$worktree_path" "origin/$base_branch"
    ```
 
-   The branch name MUST exactly equal `<name>`. The sibling directory MUST be `${repo_name}-<name>`.
+   Immediately verify the target before writing:
+   ```bash
+   test "$(git -C "$worktree_path" rev-parse --show-toplevel)" = "$worktree_path"
+   test "$(git -C "$worktree_path" branch --show-current)" = "<name>"
+   git -C "$worktree_path" status --short
+   ```
+
+   The branch name MUST exactly equal `<name>`. The sibling directory MUST be `${repo_name}-<name>`. From this point onward, run all OpenSpec artifact creation, validation, commits, and GitHub publication commands from `worktree_path`.
 
 4. **Create all OpenSpec planning artifacts in the worktree**
    - Change into `worktree_path`.
@@ -123,7 +143,9 @@ Create a complete OpenSpec proposal in its own worktree, publish the planning ar
 
 ## Guardrails
 
-- Never run this workflow in the original worktree after creating the sibling worktree.
+- Never run this workflow in the original worktree after creating the sibling worktree, except to remove individually confirmed, whole-file source planning edits after the target planning commit succeeds.
+- Never write proposal or canonical-spec artifacts in the source worktree. Confirm the target worktree path and branch before every artifact write, validation, commit, or push.
+- Never move source canonical specs into the sibling's `openspec/specs/**`; translate confirmed source edits into the change's delta specs and commit only `openspec/changes/<name>`.
 - Never create an issue until OpenSpec validation succeeds, or a pull request until the issue metadata, planning-artifact commit, and push all succeed.
 - Never include implementation code in the planning commit.
 - Never force-push, overwrite an existing branch, or reuse an existing worktree directory.
