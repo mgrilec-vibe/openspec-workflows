@@ -49,7 +49,7 @@ const __dirname = path.dirname(__filename);
 
 const REPO_ROOT = path.resolve(__dirname, '..');
 const SKILLS_DIR = path.join(REPO_ROOT, '.apm', 'skills');
-const SLIM_SKILLS_DIR = path.join(REPO_ROOT, '.apm', 'slim-skills');
+const SLIM_SKILLS_DIR = path.join(REPO_ROOT, '.apm', 'skills');
 const SCRIPTS_DIR = path.join(REPO_ROOT, 'scripts');
 const SESSIONS_DIR = path.join(REPO_ROOT, 'sessions');
 
