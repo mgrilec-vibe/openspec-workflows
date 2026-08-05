@@ -63,32 +63,31 @@ proposal-checkpoint-template: |
   - Strict validation: passed
   <!-- brainspec:proposal:end -->
 commands:
-  - run: openspec status --change "${INC}" --json
-    readback: parse planningHome, changeRoot, artifactPaths, actionContext
+  - run: git -C "<primary-worktree>" worktree add "<lifecycle-worktree>" -b "${INC}" "origin/<default-branch>"
+    readback: branch ${INC} checked out at the deterministic sibling lifecycle-worktree path
   - run: openspec new change "${INC}"
+    cwd: "<lifecycle-worktree>"
     readback: changeRoot exists with .openspec.yaml
-  - run: openspec validate "${INC}" --type change --strict
-    readback: exit 0
-  - run: git worktree add "<parent-of-primary-worktree>/<repo>-${INC}" -b "${INC}" "origin/<default-branch>"
-    readback: branch ${INC} checked out at the deterministic sibling path
-  - run: git checkout "${INC}"
-    readback: HEAD on ${INC} at Base
-  - run: openspec new change "${INC}"
-    readback: changeRoot exists with .openspec.yaml (idempotent on re-run)
   - run: openspec status --change "${INC}" --json
-    readback: planningHome local, changeRoot exactly openspec/changes/${INC}/
-  - run: git add openspec/changes/${INC}
-  - run: git diff --cached --check
-  - run: git commit -m "docs(openspec): propose ${INC}"
+    cwd: "<lifecycle-worktree>"
+    readback: planningHome local, changeRoot exactly openspec/changes/${INC}/, artifactPaths and actionContext parsed
+  - run: openspec validate "${INC}" --type change --strict
+    cwd: "<lifecycle-worktree>"
+    readback: exit 0
+  - run: git -C "<lifecycle-worktree>" add openspec/changes/${INC}
+  - run: git -C "<lifecycle-worktree>" diff --cached --check
+  - run: git -C "<lifecycle-worktree>" commit -m "docs(openspec): propose ${INC}"
     readback: HEAD on ${INC} at the planning commit, no other changes
-  - run: git push origin "${INC}" --no-force
+  - run: git -C "<lifecycle-worktree>" push origin "${INC}" --no-force
     readback: origin/${INC} at the planning commit SHA
   - run: gh pr create --draft --base <default> --head "${INC}" --title "BrainSpec: ${INC}" --body-file <planning-summary>
+    cwd: "<lifecycle-worktree>"
     readback: PR is open, draft, base = default, head = ${INC}, body uses "Refs #<n>"
-  - run: write openspec/changes/${INC}/github-issue.json with the metadata-schema
-  - run: git add openspec/changes/${INC}/github-issue.json
-  - run: git commit -m "docs(brainspec): record lifecycle metadata for ${INC}"
-  - run: git push origin "${INC}" --no-force
+  - file-operation: write openspec/changes/${INC}/github-issue.json with the metadata-schema
+    cwd: "<lifecycle-worktree>"
+  - run: git -C "<lifecycle-worktree>" add openspec/changes/${INC}/github-issue.json
+  - run: git -C "<lifecycle-worktree>" commit -m "docs(brainspec): record lifecycle metadata for ${INC}"
+  - run: git -C "<lifecycle-worktree>" push origin "${INC}" --no-force
     readback: PR head at the metadata-finalization commit
 readback-rules:
   - PR is open, draft, base = repository default, head = ${INC}

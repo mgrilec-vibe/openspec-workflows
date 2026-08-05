@@ -34,8 +34,9 @@ about.
 - A rough implementation idea.
 - A fully qualified target repository, inferred from the current
   checkout unless the user names one.
-- A readiness decision: `ready` (default) | `blocked` |
-  `ambiguous`. The script refuses to publish `ready` unless the
+- An explicit readiness decision: `ready` | `blocked` |
+  `ambiguous`. Readiness has no default; the script exits with status
+  2 when the caller omits it. The script refuses to publish `ready` unless the
   caller passes it explicitly. Use `blocked` to surface unresolved
   product or technical questions; the script then emits the
   `needs-human` label and a `Proposal readiness: blocked: <reason>`
@@ -48,13 +49,16 @@ identifier; in that case the caller passes `ambiguous`.
 
 ## Procedure (delegated)
 
-Run the procedure script; it owns the increment-id derivation, the
-canonical-issue marker search, the local baseline snapshot, the
-exact-marker body template, the label preflight, the
+Resolve the activated skill's directory to an absolute path, then run
+its co-located procedure script. Never derive the skill directory from
+the process working directory. The script owns the increment-id
+derivation, the canonical-issue marker search, the local baseline
+snapshot, the exact-marker body template, the label preflight, the
 readback-after-mutation rule, and the readiness decision.
 
 ```bash
-bash ./scripts/brainspec-explore.sh "<rough-idea>" [readiness]
+SKILL_DIR="<resolved-absolute-path-to-activated-brainspec-slim-explore-skill>"
+bash "$SKILL_DIR/scripts/brainspec-explore.sh" "<rough-idea>" "<readiness>"
 ```
 
 The script prints one of: `state: ready`, `state: blocked: <reason>`,

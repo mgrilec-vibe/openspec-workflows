@@ -24,14 +24,17 @@ Propose a new change and generate every required planning artifact in one step. 
 
 ## Procedure (delegated)
 
-Run the procedure script; it is the authoritative reference for the canonical
-issue marker, the lifecycle target schema, the artifact set, the planning
-commit, the metadata schema, the proposal checkpoint template, and the
-ordered commands (branch create, worktree attach, change scaffold, planning
-commit, push, draft PR, metadata commit, metadata push).
+Resolve the activated skill's directory to an absolute path supplied by the
+host skill mechanism; never derive it from the process working directory.
+Run its co-located procedure script; it is the authoritative reference for
+the canonical issue marker, the lifecycle target schema, the artifact set,
+the planning commit, the metadata schema, the proposal checkpoint template,
+and the ordered commands (branch/worktree creation, change scaffold,
+planning commit, push, draft PR, metadata commit, metadata push).
 
 ```bash
-bash ./scripts/brainspec-propose.sh "<increment-id>"
+SKILL_DIR="<absolute path to the activated brainspec-slim-propose skill>"
+bash "${SKILL_DIR}/scripts/brainspec-propose.sh" "<increment-id>"
 ```
 
 The script prints `state: prepared` followed by the imperative command
@@ -46,8 +49,9 @@ Then:
    `/brainspec-slim-propose <change-name>` invocation to repair the
    original proposal.
 2. If the script printed `state: prepared`, follow the imperative lines
-   it printed (create branch, worktree, change, run status, plan, commit,
-   push, draft PR, write metadata, commit metadata, push metadata).
+   it printed (create the branch and worktree, create the change in that
+   worktree, run status, plan, commit, push, draft PR, write metadata,
+   commit metadata, push metadata).
 3. When the draft pull request is open and the metadata commit is
    pushed, replace the proposal boundary in the issue with the
    `Proposal checkpoint` template the script printed, change the issue
