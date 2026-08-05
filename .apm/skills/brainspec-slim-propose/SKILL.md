@@ -1,6 +1,6 @@
 ---
 name: brainspec-slim-propose
-description: Runs only after the user explicitly invokes `/brainspec-slim-propose` through the host skill mechanism. Slim variant of `/brainspec-propose` that delegates procedural content to `scripts/brainspec-propose.sh`. Preserves the externally visible BrainSpec lifecycle contract (marker, checkpoint boundary, label set, PR linkage, metadata schema, strict validation). Use this for token-constrained sessions; use the full `brainspec-propose` skill for the canonical reference.
+description: Runs only after the user explicitly invokes `/brainspec-slim-propose` through the host skill mechanism. Slim variant of `/brainspec-propose` that delegates procedural content to `scripts/brainspec-propose.sh` in this skill's directory. Preserves the externally visible BrainSpec lifecycle contract (marker, checkpoint boundary, label set, PR linkage, metadata schema, strict validation). Use this for token-constrained sessions; use the full `brainspec-propose` skill for the canonical reference.
 allowed-tools: Bash(openspec:*), Bash(git:*), Bash(gh:*), Bash(scripts:*)
 license: MIT
 compatibility: Requires OpenSpec CLI, Git, GitHub CLI authentication, and an open ready BrainSpec exploration issue.
@@ -12,7 +12,7 @@ metadata:
 
 # BrainSpec Slim Propose
 
-Propose a new change and generate every required planning artifact in one step. This is the slim variant: the procedural content lives in `scripts/brainspec-propose.sh` and is emitted as a tool result. The skill text below carries only the constraints the model must reason about.
+Propose a new change and generate every required planning artifact in one step. This is the slim variant: the procedural content lives in `scripts/brainspec-propose.sh` (relative to this skill's directory) and is emitted as a tool result. The skill text below carries only the constraints the model must reason about.
 
 ## Invocation boundary (HARD)
 
@@ -31,7 +31,7 @@ ordered commands (branch create, worktree attach, change scaffold, planning
 commit, push, draft PR, metadata commit, metadata push).
 
 ```bash
-bash scripts/brainspec-propose.sh "<increment-id>"
+bash ./scripts/brainspec-propose.sh "<increment-id>"
 ```
 
 The script prints `state: prepared` followed by the imperative command

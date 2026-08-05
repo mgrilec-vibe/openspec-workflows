@@ -1,6 +1,6 @@
 ---
 name: brainspec-slim-coordinate
-description: Slim variant of `/brainspec-coordinate` that delegates procedural content to `scripts/brainspec-coordinate.sh`. Preserves the externally visible BrainSpec lifecycle contract. Use this for token-constrained sessions; use the full `brainspec-coordinate` skill for the canonical reference.
+description: Slim variant of `/brainspec-coordinate` that delegates procedural content to `scripts/brainspec-coordinate.sh` in this skill's directory. Preserves the externally visible BrainSpec lifecycle contract. Use this for token-constrained sessions; use the full `brainspec-coordinate` skill for the canonical reference.
 allowed-tools: Bash(git:*), Bash(gh:*), Bash(scripts:*)
 license: MIT
 compatibility: Requires Git, authenticated GitHub CLI, and proposed BrainSpec issues.
@@ -24,7 +24,7 @@ classification rules, the cycle rejection logic, the wave
 construction, and the optional coordination-issue persistence.
 
 ```bash
-bash scripts/brainspec-coordinate.sh "<issue-list-or-milestone>"
+bash ./scripts/brainspec-coordinate.sh "<issue-list-or-milestone>"
 ```
 
 The script prints a waves summary, the classified relationships, the

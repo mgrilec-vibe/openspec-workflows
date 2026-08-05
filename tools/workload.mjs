@@ -73,8 +73,21 @@ function tokens(text) {
  * identical across baseline and optimized. The token savings therefore
  * come from the skill prompt shrinkage, not from missing tool output.
  */
-function runScript(name, ...args) {
-  const file = path.join(SCRIPTS_DIR, name);
+/**
+ * Execute a helper script and return its stdout. Used in both runs so
+ * that the tool history (which the model sees in subsequent turns) is
+ * identical across baseline and optimized. The token savings therefore
+ * come from the skill prompt shrinkage, not from missing tool output.
+ *
+ * `scriptDir` is the directory the script should be looked up in.
+ * For the slim variant, this is the slim skill's own folder
+ * (`<SKILL_DIR>/brainspec-slim-<stage>/scripts/`). For the baseline
+ * variant, the scripts/ directory at the package root is empty
+ * (the scripts moved into the slim skill folders per the APM
+ * convention), so the synthetic fallback is used.
+ */
+function runScript(scriptDir, name, ...args) {
+  const file = path.join(scriptDir, name);
   if (fs.existsSync(file)) {
     try {
       return execFileSync('bash', [file, ...args], { encoding: 'utf8' });
@@ -91,63 +104,17 @@ function runScript(name, ...args) {
  * script outputs so the comparison isolates skill prompt shrinkage.
  */
 const SYNTHETIC_SCRIPT_OUTPUTS = {
-  'brainspec-explore.sh':
-    'state: ready\n' +
-    'stage-label: explore\n' +
-    'readiness: ready\n' +
-    'rough-idea: <rough-idea>\n' +
-    'label-preflight: explore OR needs-human on canonical issue\n' +
-    'baseline-snapshot: HEAD, status, diff, ls-files\n' +
-    'commands: gh search issues, gh auth status, gh api, gh issue create --label <stage-label>\n' +
-    'readback: URL, title, labels, body, update time\n' +
-    'hard-stops: marker on closed/duplicate, label preflight fail, baseline drift, readiness=ready with unresolved questions',
-  'brainspec-propose.sh':
-    'state: prepared\n' +
-    'marker: <!-- brainspec:increment-id=<id> -->\n' +
-    'lifecycle-branch: <id>\n' +
-    'worktree: <parent-of-primary-worktree>/<repo>-<id>\n' +
-    'base: origin/<default-branch>@<fetched-tip-sha>\n' +
-    'artifact-set: proposal.md, specs/<capability>/spec.md, design.md, tasks.md, github-issue.json\n' +
-    'planning-commit: docs(openspec): propose <id>\n' +
-    'metadata-commit: docs(brainspec): record lifecycle metadata for <id>\n' +
-    'metadata-schema: schemaVersion=2, incrementId, issue, pullRequest, branch, worktree, base\n' +
-    'proposal-checkpoint-template: <!-- brainspec:proposal:start --> ## Proposal checkpoint ... <!-- brainspec:proposal:end -->\n' +
-    'commands: openspec status, openspec new change, openspec validate, git worktree add, git checkout, openspec new change (idempotent), git add, git diff --cached --check, git commit, git push (no-force), gh pr create --draft --body-file, write github-issue.json, git add, git commit, git push (no-force)\n' +
-    'readback-rules: PR open/draft/base=default, Refs, byte-identical metadata, strict validation passed, branch exists on origin before pr create',
   'brainspec-apply.sh':
-    'state: prepared\n' +
-    'marker: <!-- brainspec:increment-id=<id> -->\n' +
-    'implementation-boundary-template: <!-- brainspec:implementation:start --> ## Implementation checkpoint ... <!-- brainspec:implementation:end -->\n' +
-    'blocker-boundary-template: <!-- brainspec:implementation:start --> ## Implementation blocked ... <!-- brainspec:implementation:end -->\n' +
-    'archiving-handoff-template: <!-- brainspec:implementation:start --> ## Implementation checkpoint (complete) ... <!-- brainspec:implementation:end -->\n' +
-    'commands: openspec status, openspec instructions apply, openspec validate, gh pr view (isDraft, headRefName, baseRefName, body)\n' +
-    'per-chunk-rules: stage only owned paths, git diff --cached --check, commit with scoped message, push no force, read PR back\n' +
-    'plan-only-rules: reconcile across affected artifacts, preserve checked tasks, commit docs(openspec): revise, pause before code\n' +
-    'readback-rules: readback of exactly implementing before first edit, body/label-first partial permits one repair, never infer from branch name\n' +
-    'hard-stops: PR not open/draft, Refs, base/head mismatch, metadata missing, second PR, force push, PR diff not confined',
+    'state: prepared\nmarker: <!-- brainspec:increment-id=add-session-replay -->\nimplementation-boundary-template: |\n  <!-- brainspec:implementation:start -->\n  ## Implementation checkpoint\n  - Status: implementing - transition read back before code\n  - Canonical issue: <url and exact marker>\n  - OpenSpec change: add-session-replay\n  - Change root: openspec/changes/add-session-replay\n  - Lifecycle PR: <url> - open draft\n  - Lifecycle branch: <branch>\n  - Lifecycle worktree: <absolute path>\n  - Base: <sha>\n  - Proposal commit: <sha>\n  - Proposal tree: <oid>\n  - Metadata: <path> - verified and immutable\n  - Implementation head: pending\n  - Implementation tree: pending\n  - Verification: pending - <named acceptance scenario>\n  - Smoke: pending - <named smoke path>\n  - Documentation: pending update/creation or verified None rationale\n  - Review fixes: none\n  <!-- brainspec:implementation:end -->\nblocker-boundary-template: |\n  <!-- brainspec:implementation:start -->\n  ## Implementation blocked\n  - Status: needs-human\n  - Resume stage: implementing|fixing\n  - Question: <exact question>\n  - Options: <option 1> / <option 2> / ...\n  - Evidence: <facts and refs>\n  - Recommendation: <one>\n  <!-- brainspec:implementation:end -->\narchiving-handoff-template: |\n  <!-- brainspec:implementation:start -->\n  ## Implementation checkpoint\n  - Status: complete - ready for archive finalization\n  - Implementation head: <pushed sha>\n  - Implementation tree: <change-root subtree oid>\n  - Verification: <concrete passed command/result>\n  - Smoke: <concrete passed command/result>\n  - Documentation: <completed paths or verified None rationale>\n  - Review fixes: <completed references or none>\n  <!-- brainspec:implementation:end -->\ncommands:\n  - run: openspec status --change "add-session-replay" --json\n    readback: schemaName, planningHome, changeRoot, actionContext, contextFiles\n  - run: openspec instructions apply --change "add-session-replay" --json\n    readback: progress, tasks, instruction, optional context, optional operationGuidance\n  - run: openspec validate "add-session-replay" --type change --strict\n    readback: exit 0\n  - run: gh pr view "<pr-url>" --json isDraft,headRefName,baseRefName,body\n    readback: isDraft=true, headRefName=metadata-branch, body contains "Refs #<n>"\nper-chunk-rules:\n  - stage only owned code, tests, documentation, and active-change paths\n  - run: git diff --cached --check\n  - commit with scoped implementation message\n  - push the lifecycle branch without force\n  - read the same draft pull request back at the pushed head\nplan-only-rules:\n  - reconcile the explicit revision across every affected planning artifact\n  - preserve checked tasks that remain valid, uncheck invalidated tasks\n  - commit as: docs(openspec): revise add-session-replay\n  - push without force, read the draft Refs PR back at the new head\n  - pause before editing application code\nreadback-rules:\n  - require readback of exactly "implementing" and the complete checkpoint before the first edit\n  - body-first or label-first exact partial permits one repair after re-verifying metadata, PR, branch, worktree\n  - never infer ownership from a branch name alone\nhard-stops:\n  - PR not open, not draft, not using Refs, or different base/head than metadata\n  - github-issue.json missing, additional/missing keys, or schemaVersion != 2\n  - Proposal commit not ancestor of PR head\n  - second PR, another branch/worktree, or force push\n  - PR diff not confined to change root plus owned implementation paths\n',
   'brainspec-archive.sh':
-    'state: prepared\n' +
-    'marker: <!-- brainspec:increment-id=<id> -->\n' +
-    'archive-boundary-template: <!-- brainspec:archive:start --> ## Archive checkpoint ... <!-- brainspec:archive:end -->\n' +
-    'pr-readiness-transition: step 1 gh pr edit (readback isDraft=true, body has Closes), step 2 gh pr ready (readback state=ready)\n' +
-    'spec-sync-rules: source artifactPaths.specs.existingOutputPaths, apply only declared ADDED/MODIFIED/REMOVED/RENAMED\n' +
-    'merge-gate: all tasks checked, strict validation passed, acceptance+smoke passed, sync done or zero diff, Closes ready, ancestors\n' +
-    'commands: openspec status, openspec instructions archive, openspec instructions specs, openspec validate, mkdir archive, mv change, commit, push, gh pr edit (readback isDraft=true), gh pr ready, gh pr merge\n' +
-    'hard-stops: PR not lifecycle/head/merged, sync left delta unapplied, second PR, duplicate target or nonmatching manifest, treating gh pr edit as undraft',
+    'state: prepared\nmarker: <!-- brainspec:increment-id=add-session-replay -->\narchive-boundary-template: |\n  <!-- brainspec:archive:start -->\n  ## Archive checkpoint\n  - Status: archiving - transfer to archive finalization\n  - Lifecycle PR: <url> - open draft until transition step\n  - Implementation head: <pushed sha>\n  - Spec sync: <applied|skipped|skipped-by-schema>\n  - Archive target: openspec/changes/archive/YYYY-MM-DD-add-session-replay/\n  - Move classification: <class>\n  - Manifest: <path/mode/blob-identity summary>\n  <!-- brainspec:archive:end -->\npr-readiness-transition:\n  - step 1: gh pr edit "<pr-url>" --base <default> --body-file <archive-summary-with-Closes>\n    readback: isDraft=true (gh pr edit does NOT undraft), body contains "Closes #<n>"\n  - step 2: gh pr ready "<pr-url>"\n    readback: state=ready, body still contains "Closes #<n>"\nspec-sync-rules:\n  - source: artifactPaths.specs.existingOutputPaths\n  - apply only declared ADDED, MODIFIED, REMOVED, RENAMED\n  - preserve every unrelated requirement and scenario\n  - verify each capability after sync: ADDED present, MODIFIED carries scenario and description, REMOVED gone, RENAMED present\n  - rules apply only to specs being written; not archive guidance\nmerge-gate:\n  - all tasks checked\n  - openspec validate "add-session-replay" --type change --strict passed\n  - acceptance + smoke passed\n  - spec sync either succeeded or was explicitly skipped with zero canonical-spec diff\n  - PR body carries "Closes #<n>" and is in ready state\n  - Proposal commit and Implementation head are ancestors of Archive head\ncommands:\n  - run: openspec status --change "add-session-replay" --json\n    readback: planningHome, changeRoot, artifactPaths, actionContext, artifacts\n  - run: openspec instructions archive --change "add-session-replay" --json\n    readback: optional context, optional operationGuidance\n  - run: openspec instructions specs --change "add-session-replay" --json\n    readback: rules (apply only to specs being written)\n  - run: openspec validate "add-session-replay" --type change --strict\n    readback: exit 0\n  - run: mkdir -p "openspec/changes/archive"\n  - run: mv "openspec/changes/add-session-replay" "openspec/changes/archive/YYYY-MM-DD-add-session-replay"\n    readback: source absent, target present, exact manifest equality\n  - run: git add openspec/changes/archive/YYYY-MM-DD-add-session-replay\n  - run: git commit -m "docs(openspec): archive add-session-replay"\n  - run: git push origin "add-session-replay" --no-force\n  - run: gh pr edit "<pr-url>" --base <default> --body-file <archive-summary>\n    readback: isDraft=true (body updated; gh pr edit does not undraft)\n  - run: gh pr ready "<pr-url>"\n    readback: state=ready\n  - run: gh pr merge "<pr-url>" --squash --delete-branch=false\n    readback: merged=true, terminal issue block recorded\nhard-stops:\n  - PR not the lifecycle PR, not at the verified head, or already merged\n  - spec sync left delta requirements not applied to the canonical spec\n  - second PR, another branch/worktree, or forced rewrite of the archive commit\n  - move produced a duplicate target or a nonmatching manifest\n  - treating gh pr edit as if it undrafts the PR\n',
   'brainspec-coordinate.sh':
-    'state: prepared\n' +
-    'plan-id: coord-<date>\n' +
-    'marker: <!-- brainspec:coordination-id=<plan-id> -->\n' +
-    'member-resolution: <owner>/<repo>#<n>, marker, Proposal checkpoint, verified commit\n' +
-    'relationships: requires/prefer-after/serialize-after/parallel-safe\n' +
-    'unknowns: missing evidence treated as unknown\n' +
-    'persistence: search, create-or-update, read-back\n' +
-    'commands: gh search issues, gh issue create, gh issue edit (readback)',
-  'pr-body.sh':
-    '## Summary\n<Rendered summary for <id>>\n## Why\n<Evidence-backed rationale for <id>>\n## Test plan\n- npm test exits 0\n- node tools/measure.mjs reports reduction\n\nRefs #<issue-number>',
-  'issue-template.sh':
-    '## Issue update (<tpl> for <id>)\n- Removed: <prior label>\n- Added: <next label>\n- Body updated with the implementation checkpoint boundary.',
-};
+    'state: prepared\nplan-id: coord-2026-08-05\nmarker: <!-- brainspec:coordination-id=<plan-id> -->\nmember-resolution:\n  - resolve each member as <owner>/<repo>#<number>\n  - require one BrainSpec marker and Proposal checkpoint\n  - verify Proposal commit belongs to the recorded lifecycle PR and contains its planning artifacts\nrelationships:\n  - requires #N: cannot implement safely before #N merges\n  - prefer-after #N: can proceed, but #N first should reduce rework\n  - serialize-after #N: must not run concurrently and should follow #N\n  - parallel-safe #N: verified safe in the same wave\nunknowns: treat missing evidence as unknown, not parallel-safe\nhard-stops:\n  - referenced issue lacks the BrainSpec marker, Proposal checkpoint, or verified Proposal commit\n  - hard-dependency cycle detected\n  - more than one active coordination issue references the same member\n  - repository authentication or capability preflight fails\npersistence:\n  - search open and closed issues for the exact coordination marker\n  - zero matches: create\n  - one match: update or resume\n  - multiple matches: stop\n  - read body, labels, updatedAt; re-read immediately before mutation; abort on change\n  - write once, read the result back\ncommands:\n  - run: gh search issues --repo "<owner>/<repo>" --state all --match body "<!-- brainspec:coordination-id=" --limit 1000 --json number,state,url,body\n  - run: gh issue create --repo "<owner>/<repo>" --title "Coordination: <plan-id>" --body-file <body> --label "coordination"\n    readback: gh search issues for the exact coordination marker\n  - run: gh issue edit <url> --add-label "coordination" --body-file <body>\n    readback: URL, title, labels, body, update time\n',
+  'brainspec-explore.sh':
+    'state: ready\nstage-label: explore\nreadiness: ready\nrough-idea: add-session-replay\n\nlabel-preflight:\n  - exact label name: <stage-label>\n  - on the canonical issue\nbody-template: |\n  <!-- brainspec:increment-id=<id> -->\n  <!-- brainspec:exploration:start -->\n  # Exploration: <id>\n\n  ## Rough idea\n  <verbatim user request>\n\n  ## Repository evidence\n  - <file, symbol, OpenSpec change, issue, PR, or observed command output>\n\n  ## Decisions supported by evidence\n  - <decision and rationale>\n\n  ## Unresolved questions\n  - <question, options, and missing evidence>\n\n  ## Proposal readiness\n  <ready | blocked: reason>\n\n  ## Handoff\n  <handoff-line>\n  <!-- brainspec:exploration:end -->\nbaseline-snapshot:\n  - run: git rev-parse --verify HEAD\n  - capture: git status --porcelain=v2 -uall\n  - capture: git diff --binary HEAD\n  - capture: git ls-files --others --exclude-standard\n  - compare before/after mutation with cmp -s\ncommands:\n  - run: gh search issues --repo "<owner>/<repo>" --state all --match body "<!-- brainspec:increment-id=<id> -->" --limit 1000 --json number,state,url,body\n  - run: gh auth status\n  - run: gh api "repos/<owner>/<repo>" --jq \'.permissions | {admin, maintain, push, triage}\'\n  - run: gh issue create --repo "<owner>/<repo>" --title "Explore: <id>" --body-file <body> --label "<stage-label>"\n    readback: gh search issues for the exact marker\n  - run: gh issue edit <url> --add-label "<stage-label>" --remove-label "<other>" --body-file <body>\n    readback: URL, title, labels, body, update time\nhard-stops:\n  - readiness="ready" published with unresolved product or technical questions\n  - marker on closed issue or more than one issue\n  - repository, HEAD, baseline, or stable increment identifier unresolvable\n  - existing body lacks one unambiguous generated block\n  - existing issue carries any later-stage label or multiple stage labels\n  - GitHub authentication, capability preflight, label setup, or issue mutation fails\n  - tracked or untracked Git baseline changes before mutation\n',
+  'brainspec-propose.sh':
+    'state: prepared\nmarker: <!-- brainspec:increment-id=add-session-replay -->\nlifecycle-branch: add-session-replay\nworktree: <parent-of-primary-worktree>/<repo>-add-session-replay\nbase: origin/<default-branch>@<fetched-tip-sha>\nartifact-set:\n  - openspec/changes/add-session-replay/proposal.md\n  - openspec/changes/add-session-replay/specs/<capability>/spec.md\n  - openspec/changes/add-session-replay/design.md\n  - openspec/changes/add-session-replay/tasks.md\n  - openspec/changes/add-session-replay/github-issue.json\nplanning-commit: docs(openspec): propose add-session-replay\nmetadata-commit: docs(brainspec): record lifecycle metadata for add-session-replay\nmetadata-schema:\n  schemaVersion: 2\n  incrementId: add-session-replay\n  issue: <canonical issue url>\n  pullRequest: <lifecycle pr url>\n  branch: add-session-replay\n  worktree: <absolute deterministic sibling path>\n  base: <immutable fetched default-branch sha>\nissue-marker: <!-- brainspec:increment-id=add-session-replay -->\nproposal-checkpoint-template: |\n  <!-- brainspec:proposal:start -->\n  ## Proposal checkpoint\n  - OpenSpec change: add-session-replay\n  - Change root: openspec/changes/add-session-replay\n  - Lifecycle branch: add-session-replay\n  - Lifecycle worktree: <absolute path>\n  - Base: <sha>\n  - Canonical issue: <url>\n  - Lifecycle PR: <url> - open draft\n  - Proposal commit: <sha>\n  - Proposal tree: <oid>\n  - Metadata: openspec/changes/add-session-replay/github-issue.json - verified\n  - Artifacts: <paths>\n  - Strict validation: passed\n  <!-- brainspec:proposal:end -->\ncommands:\n  - run: openspec status --change "add-session-replay" --json\n    readback: parse planningHome, changeRoot, artifactPaths, actionContext\n  - run: openspec new change "add-session-replay"\n    readback: changeRoot exists with .openspec.yaml\n  - run: openspec validate "add-session-replay" --type change --strict\n    readback: exit 0\n  - run: git worktree add "<parent-of-primary-worktree>/<repo>-add-session-replay" -b "add-session-replay" "origin/<default-branch>"\n    readback: branch add-session-replay checked out at the deterministic sibling path\n  - run: git checkout "add-session-replay"\n    readback: HEAD on add-session-replay at Base\n  - run: openspec new change "add-session-replay"\n    readback: changeRoot exists with .openspec.yaml (idempotent on re-run)\n  - run: openspec status --change "add-session-replay" --json\n    readback: planningHome local, changeRoot exactly openspec/changes/add-session-replay/\n  - run: git add openspec/changes/add-session-replay\n  - run: git diff --cached --check\n  - run: git commit -m "docs(openspec): propose add-session-replay"\n    readback: HEAD on add-session-replay at the planning commit, no other changes\n  - run: git push origin "add-session-replay" --no-force\n    readback: origin/add-session-replay at the planning commit SHA\n  - run: gh pr create --draft --base <default> --head "add-session-replay" --title "BrainSpec: add-session-replay" --body-file <planning-summary>\n    readback: PR is open, draft, base = default, head = add-session-replay, body uses "Refs #<n>"\n  - run: write openspec/changes/add-session-replay/github-issue.json with the metadata-schema\n  - run: git add openspec/changes/add-session-replay/github-issue.json\n  - run: git commit -m "docs(brainspec): record lifecycle metadata for add-session-replay"\n  - run: git push origin "add-session-replay" --no-force\n    readback: PR head at the metadata-finalization commit\nreadback-rules:\n  - PR is open, draft, base = repository default, head = add-session-replay\n  - PR body uses "Refs #<n>", not a closing keyword\n  - github-issue.json is byte-identical to its Proposal-commit version\n  - Proposal commit is the metadata-finalization head\n  - Strict validation passes\nhard-stops:\n  - marker on closed issue or more than one issue\n  - second PR, another branch/worktree, or non-Refs linkage\n  - non-schemaversion-2 metadata file\n  - symlink or lexical-prefix escape under changeRoot\n  - Base not ancestor of freshly fetched default\n  - `gh pr create --head` invoked before the branch exists on origin\n',
+};;
 
 function record(session, row) {
   const promptTokens = tokens(row.prompt);
@@ -221,14 +188,14 @@ function runWorkload(session, variant) {
         propose: 'brainspec-slim-propose',
         apply:   'brainspec-slim-apply',
         archive: 'brainspec-slim-archive',
-        coord:   'brainspec-slim-coordinate',
+        coordinate: 'brainspec-slim-coordinate',
       }
     : {
         explore: 'brainspec-explore',
         propose: 'brainspec-propose',
         apply:   'brainspec-apply',
         archive: 'brainspec-archive',
-        coord:   'brainspec-coordinate',
+        coordinate: 'brainspec-coordinate',
       };
   const TASK = {
     explore: `/${TOOL.explore} add-session-replay`,
@@ -237,6 +204,44 @@ function runWorkload(session, variant) {
     archive: `/${TOOL.archive} add-session-replay`,
   };
   const skillsLabel = variant;
+
+  // Resolve the directory a script lives in. For the slim variant,
+  // the stage scripts are co-located with their skill folder per
+  // the APM convention (.apm/skills/<name>/scripts/<name>.sh). The
+  // helper scripts (pr-body.sh, issue-template.sh) live at the
+  // package root scripts/ directory and resolve the same way on
+  // both variants. For the baseline variant, the stage scripts
+  // do not exist on disk (they moved with the slim skills), so
+  // the synthetic fallback is used.
+  // Resolve the directory a script lives in. For the slim variant,
+  // the stage scripts are co-located with their skill folder per
+  // the APM convention (.apm/skills/<name>/scripts/<name>.sh). The
+  // helper scripts (pr-body.sh, issue-template.sh) live at the
+  // package root scripts/ directory and resolve the same way on
+  // both variants.
+  //
+  // For the baseline variant, the stage scripts do not exist on
+  // disk (the original verbose skill has the procedural content
+  // inline, so the agent never runs a script). The harness falls
+  // through to runScript, which returns the synthetic fallback for
+  // baseline so the tool history reflects "the agent had access to
+  // the same procedural content but inlined it." This keeps the
+  // baseline tool-history comparable to the optimized tool history.
+  const scriptDirFor = (scriptName) => {
+    const stageMatch = scriptName.match(/^brainspec-(propose|apply|archive|explore|coordinate)\.sh$/);
+    if (stageMatch) {
+      const stage = stageMatch[1];
+      if (variant === 'slim') {
+        return path.join(SKILLS_DIR, TOOL[stage], 'scripts');
+      }
+      // Baseline: stage scripts moved with the slim skills. Point
+      // at a non-existent path under the original skill folder so
+      // runScript falls back to the synthetic.
+      return path.join(SKILLS_DIR, 'brainspec-' + stage, 'scripts');
+    }
+    return SCRIPTS_DIR; // helper scripts: pr-body.sh, issue-template.sh
+  };
+
 
   // -- Task 1: open a PR (covers /brainspec-explore + /brainspec-propose) --
   const t1a = llmCall(session, {
@@ -258,7 +263,7 @@ function runWorkload(session, variant) {
     ],
     response: proposeResponse(),
     scriptOutputs: {
-      'brainspec-explore.sh': runScript('brainspec-explore.sh', 'add-session-replay'),
+      'brainspec-explore.sh': runScript(scriptDirFor('brainspec-explore.sh'), 'brainspec-explore.sh', 'add-session-replay'),
     },
   });
   const t1c = llmCall(session, {
@@ -272,7 +277,7 @@ function runWorkload(session, variant) {
     ],
     response: prBodyResponse(),
     scriptOutputs: {
-      'pr-body.sh': runScript('pr-body.sh', 'add-session-replay'),
+      'pr-body.sh': runScript(scriptDirFor('pr-body.sh'), 'pr-body.sh', 'add-session-replay'),
     },
   });
 
@@ -288,7 +293,7 @@ function runWorkload(session, variant) {
     ],
     response: applyResponse(),
     scriptOutputs: {
-      'brainspec-propose.sh': runScript('brainspec-propose.sh', 'add-session-replay'),
+      'brainspec-propose.sh': runScript(scriptDirFor('brainspec-propose.sh'), 'brainspec-propose.sh', 'add-session-replay'),
     },
   });
   const t2b = llmCall(session, {
@@ -302,7 +307,7 @@ function runWorkload(session, variant) {
     ],
     response: labelTransitionResponse(),
     scriptOutputs: {
-      'issue-template.sh': runScript('issue-template.sh', 'label-transition'),
+      'issue-template.sh': runScript(scriptDirFor('issue-template.sh'), 'issue-template.sh', 'label-transition'),
     },
   });
 
@@ -318,12 +323,12 @@ function runWorkload(session, variant) {
     ],
     response: archiveResponse(),
     scriptOutputs: {
-      'brainspec-apply.sh': runScript('brainspec-apply.sh', 'add-session-replay'),
+      'brainspec-apply.sh': runScript(scriptDirFor('brainspec-apply.sh'), 'brainspec-apply.sh', 'add-session-replay'),
     },
   });
   const t3b = llmCall(session, {
     task: 'Coordinate proposed issues 41, 42, 43',
-    name: TOOL.coord,
+    name: TOOL.coordinate,
     skills: skillsLabel,
     skillText: coordinateSkill,
     history: [
@@ -332,7 +337,7 @@ function runWorkload(session, variant) {
     ],
     response: coordResponse(),
     scriptOutputs: {
-      'brainspec-coordinate.sh': runScript('brainspec-coordinate.sh', '41,42,43'),
+      'brainspec-coordinate.sh': runScript(scriptDirFor('brainspec-coordinate.sh'), 'brainspec-coordinate.sh', '41,42,43'),
     },
   });
   const t3c = llmCall(session, {
@@ -346,7 +351,7 @@ function runWorkload(session, variant) {
     ],
     response: issueBodyResponse(),
     scriptOutputs: {
-      'issue-template.sh': runScript('issue-template.sh', 'blocker'),
+      'issue-template.sh': runScript(scriptDirFor('issue-template.sh'), 'issue-template.sh', 'blocker'),
     },
   });
 }

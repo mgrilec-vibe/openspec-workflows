@@ -1,6 +1,6 @@
 ---
 name: brainspec-slim-explore
-description: Runs only after the user explicitly invokes `/brainspec-slim-explore` through the host skill mechanism. Slim variant of `/brainspec-explore` that delegates procedural content to `scripts/brainspec-explore.sh`. Preserves the externally visible BrainSpec lifecycle contract. Use this for token-constrained sessions; use the full `brainspec-explore` skill for the canonical reference.
+description: Runs only after the user explicitly invokes `/brainspec-slim-explore` through the host skill mechanism. Slim variant of `/brainspec-explore` that delegates procedural content to `scripts/brainspec-explore.sh` in this skill's directory. Preserves the externally visible BrainSpec lifecycle contract. Use this for token-constrained sessions; use the full `brainspec-explore` skill for the canonical reference.
 allowed-tools: Bash(git:*), Bash(gh:*), Bash(scripts:*)
 license: MIT
 metadata:
@@ -11,7 +11,7 @@ metadata:
 # BrainSpec Slim Explore
 
 Turn a rough idea into a durable exploration checkpoint. Slim variant:
-the procedural content lives in `scripts/brainspec-explore.sh`. The
+the procedural content lives in `scripts/brainspec-explore.sh` (relative to this skill's directory). The
 skill text below carries only the constraints the model must reason
 about.
 
@@ -54,7 +54,7 @@ exact-marker body template, the label preflight, the
 readback-after-mutation rule, and the readiness decision.
 
 ```bash
-bash scripts/brainspec-explore.sh "<rough-idea>" [readiness]
+bash ./scripts/brainspec-explore.sh "<rough-idea>" [readiness]
 ```
 
 The script prints one of: `state: ready`, `state: blocked: <reason>`,

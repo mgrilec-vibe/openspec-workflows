@@ -56,12 +56,20 @@ The parent session's spawn policy must allow `fixer`: use `spawns: "*"` or inclu
 
 ## BrainSpec token reduction (slim skills)
 
-This branch moves the slim variants of the BrainSpec lifecycle skills
-into `.apm/skills/`, alongside the unchanged original
-`brainspec-<stage>/SKILL.md` files. The originals are byte-identical
-to `origin/main`; the slim skills live at
-`.apm/skills/brainspec-slim-<stage>/SKILL.md` so they can be tested
-side by side with the originals.
+This branch moves the slim scripts into the slim skill folders per
+the APM skill convention. Each slim skill now ships as a self-
+contained unit:
+
+```
+.apm/skills/brainspec-slim-<stage>/
+  SKILL.md
+  scripts/brainspec-<stage>.sh
+```
+
+When APM installs the skill (e.g. `apm install --target claude`), the
+whole folder is copied (`shutil.copytree`) so the script rides along.
+The originals in `.apm/skills/brainspec-<stage>/SKILL.md` are byte-
+identical to `origin/main` and unchanged.
 
 
 ### Skill source of truth
@@ -71,12 +79,14 @@ side by side with the originals.
 | Original (verbose) | `.apm/skills/brainspec-<stage>/SKILL.md` | `brainspec-explore`, `brainspec-propose`, `brainspec-apply`, `brainspec-archive`, `brainspec-coordinate` |
 | Slim | `.apm/skills/brainspec-slim-<stage>/SKILL.md` | `brainspec-slim-explore`, `brainspec-slim-propose`, `brainspec-slim-apply`, `brainspec-slim-archive`, `brainspec-slim-coordinate` |
 
-Each slim skill delegates its procedural content to a script in
-`scripts/brainspec-<stage>.sh`. The stub carries the invocation boundary,
-hard stops, guardrails, and every externally visible rule (marker formats,
-lifecycle label set, metadata schema, `Refs` / `Closes` linkage,
-strict-validation contract). The mechanical procedure lives in the script,
-which the agent runs via `Bash(scripts:*)` (added to `allowed-tools`).
+Each slim skill delegates its procedural content to a co-located
+`scripts/brainspec-<stage>.sh` (relative to the skill's own directory).
+The stub carries the invocation boundary, hard stops, guardrails, and
+every externally visible rule (marker formats, lifecycle label set,
+metadata schema, `Refs` / `Closes` linkage, strict-validation
+contract). The mechanical procedure lives in the script, which the
+agent runs via `bash ./scripts/brainspec-<stage>.sh "<id>"` from the
+skill's directory.
 
 ### What the slim skills preserve
 

@@ -1,6 +1,6 @@
 ---
 name: brainspec-slim-archive
-description: Runs only after the user explicitly invokes `/brainspec-slim-archive` through the host skill mechanism. Slim variant of `/brainspec-archive` that delegates procedural content to `scripts/brainspec-archive.sh`. Preserves the externally visible BrainSpec lifecycle contract. Use this for token-constrained sessions; use the full `brainspec-archive` skill for the canonical reference.
+description: Runs only after the user explicitly invokes `/brainspec-slim-archive` through the host skill mechanism. Slim variant of `/brainspec-archive` that delegates procedural content to `scripts/brainspec-archive.sh` in this skill's directory. Preserves the externally visible BrainSpec lifecycle contract. Use this for token-constrained sessions; use the full `brainspec-archive` skill for the canonical reference.
 allowed-tools: Bash(openspec:*), Bash(git:*), Bash(gh:*), Bash(scripts:*)
 license: MIT
 compatibility: Requires OpenSpec CLI, Git, authenticated GitHub CLI, and a repository-local BrainSpec change.
@@ -13,7 +13,7 @@ metadata:
 # BrainSpec Slim Archive
 
 Archive a completed change in the experimental workflow. Slim variant:
-the procedural content lives in `scripts/brainspec-archive.sh`. The
+the procedural content lives in `scripts/brainspec-archive.sh` (relative to this skill's directory). The
 skill text below carries only the constraints the model must reason
 about.
 
@@ -41,7 +41,7 @@ classification, the ordered PR-readiness transition, and the merge
 gate. The script interpolates the supplied increment id.
 
 ```bash
-bash scripts/brainspec-archive.sh "<increment-id>"
+bash ./scripts/brainspec-archive.sh "<increment-id>"
 ```
 
 Then follow the script's per-step directives:
