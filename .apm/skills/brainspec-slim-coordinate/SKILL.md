@@ -1,64 +1,48 @@
 ---
 name: brainspec-slim-coordinate
-description: Slim variant of `/brainspec-coordinate` that delegates procedural content to `scripts/brainspec-coordinate.sh` in this skill's directory. Preserves the externally visible BrainSpec lifecycle contract. Use this for token-constrained sessions; use the full `brainspec-coordinate` skill for the canonical reference.
-allowed-tools: Bash(git:*), Bash(gh:*), Bash(scripts:*)
+description: Runs only after the user explicitly invokes `/brainspec-slim-coordinate`. The driver script resolves members, verifies Proposal checkpoints, classifies relationships, and optionally persists a coordination issue.
+allowed-tools: Bash(git:*), Bash(scripts:*)
 license: MIT
-compatibility: Requires Git, authenticated GitHub CLI, and proposed BrainSpec issues.
+compatibility: Requires GitHub CLI authentication and proposed BrainSpec issues.
 metadata:
   author: openspec
-  version: "1.0-brainspec-slim"
+  version: "3.0-brainspec-slim-driver"
 ---
 
 # BrainSpec Slim Coordinate
 
-Create an optional advisory implementation order for a user-selected
-set of proposed BrainSpec issues. Slim variant: the procedural
-content lives in `scripts/brainspec-coordinate.sh`.
+Create an optional advisory implementation order for a user-selected set of proposed BrainSpec issues. The driver script owns enforcement; the LLM owns the relationship-evidence call.
 
-## Procedure (delegated)
-
-Run the procedure script; it owns the candidate resolution
-(`<owner>/<repo>#<number>`), the per-member Proposal verification
-(checkpoint, commit, planning paths), the relationship
-classification rules, the cycle rejection logic, the wave
-construction, and the optional coordination-issue persistence.
-
-Resolve the activated skill's directory to an absolute path, then run
-its co-located procedure script:
+## Procedure
 
 ```bash
-SKILL_DIR="<resolved-absolute-path-to-activated-brainspec-slim-coordinate-skill>"
-bash "$SKILL_DIR/scripts/brainspec-coordinate.sh" "<issue-list-or-milestone>"
+SKILL_DIR="<absolute path to the activated brainspec-slim-coordinate skill directory>"
+LOG="/tmp/brainspec-coord-<plan-id>.log"
+bash "${SKILL_DIR}/scripts/brainspec-coordinate.sh" \
+  --members "<owner>/<repo>#<n>,<owner>/<repo>#<n>,..." \
+  [--persist] \
+  2>"$LOG"
 ```
 
-The script prints a waves summary, the classified relationships, the
-unknowns, and (when persistence is requested) the coordination issue
-URL. Do not invent relationship classifications from memory.
+The script resolves each member, asserts the BrainSpec marker and Proposal checkpoint, classifies the relationships, rejects cycles, and (with `--persist`) creates or updates the coordination issue.
 
-## Hard stops
+## Decision the LLM must own
 
-- A referenced issue lacks the BrainSpec marker, the Proposal
-  checkpoint, or the verified Proposal commit.
-- A hard-dependency cycle is detected.
-- More than one active coordination issue references the same
-  member.
-- Repository authentication or capability preflight fails.
-
-## Guardrails
-
-- Treat missing evidence as unknown, not parallel-safe. Ask the user
-  before recording `requires` or `serialize-after`.
-- The plan is advisory only. Never block or advance a BrainSpec
-  lifecycle stage.
-- Never change lifecycle labels, branches, worktrees, pull requests,
-  or planning artifacts.
-- Never infer a hard dependency from file overlap alone.
-- The coordination issue is canonical. Do not duplicate
-  relationships into lifecycle issues. Preserve text outside the
-  owned block.
+Relationship evidence. The script accepts the member list. The LLM must not invent `requires` or `serialize-after` from memory; missing evidence is `unknown`, not parallel-safe.
 
 ## Output
 
-Report members, Proposal snapshots, relationships with evidence,
-implementation waves, unknowns, and the coordination issue URL when
-persisted.
+One JSON line on stdout. `artifact.coordinationId` and `artifact.members` carry the verified values; `artifact.coordinationIssue` is set when `--persist` is given.
+
+## Hard stops (script-enforced)
+
+- Any member lacks the BrainSpec marker or Proposal checkpoint.
+- Hard-dependency cycle detected.
+- More than one active coordination issue references the same member.
+- `gh auth` failure.
+
+## What the LLM MUST NOT do
+
+- Change lifecycle labels, branches, worktrees, or pull requests.
+- Run `gh issue` or `gh pr` directly.
+- Infer a hard dependency from file overlap alone.

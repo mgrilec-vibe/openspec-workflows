@@ -1,106 +1,55 @@
 ---
 name: brainspec-slim-explore
-description: Runs only after the user explicitly invokes `/brainspec-slim-explore` through the host skill mechanism. Slim variant of `/brainspec-explore` that delegates procedural content to `scripts/brainspec-explore.sh` in this skill's directory. Preserves the externally visible BrainSpec lifecycle contract. Use this for token-constrained sessions; use the full `brainspec-explore` skill for the canonical reference.
-allowed-tools: Bash(git:*), Bash(gh:*), Bash(scripts:*)
+description: Runs only after the user explicitly invokes `/brainspec-slim-explore`. Delegates guards, marker search, issue creation, and readback to a single driver script. The script owns the lifecycle contract; this skill carries only the LLM-owned decisions.
+allowed-tools: Bash(git:*), Bash(scripts:*)
 license: MIT
+compatibility: Requires GitHub CLI authentication and a target repository.
 metadata:
   author: openspec
-  version: "2.0-brainspec-slim"
+  version: "3.0-brainspec-slim-driver"
 ---
 
 # BrainSpec Slim Explore
 
-Turn a rough idea into a durable exploration checkpoint. Slim variant:
-the procedural content lives in `scripts/brainspec-explore.sh` (relative to this skill's directory). The
-skill text below carries only the constraints the model must reason
-about.
+Turn a rough idea into a durable exploration checkpoint. The driver script does everything; the LLM only picks readiness.
 
 ## Invocation boundary (HARD)
 
-- Run only when the user explicitly invokes `/brainspec-slim-explore`
-  through the host skill mechanism.
-- "propose", "implement", "continue", "proceed", "do the next step",
-  "archive" is NOT an Explore invocation.
-- Never invoke, activate, delegate to, or perform work owned by
-  BrainSpec Propose, Apply, or Archive.
-- A reply that directly answers an Explore-owned clarification may
-  resume only the already-invoked Explore stage.
-- At completion, report the exploration result and stop. When
-  readiness is `ready`, name `/brainspec-slim-propose <increment-id>`
-  as the required next explicit invocation; never execute it.
+- Run only when the user explicitly invokes `/brainspec-slim-explore`.
+- Conversational assent ("continue", "go ahead", "do the next step") is NOT authorization.
+- Never invoke Propose, Apply, or Archive; this stage ends with the explore marker published.
+- At completion, report the JSON line and stop. Name `/brainspec-slim-propose <id>` as the next explicit invocation.
 
-## Required input
+## Decision the LLM must own
 
-- A rough implementation idea.
-- A fully qualified target repository, inferred from the current
-  checkout unless the user names one.
-- An explicit readiness decision: `ready` | `blocked` |
-  `ambiguous`. Readiness has no default; the script exits with status
-  2 when the caller omits it. The script refuses to publish `ready` unless the
-  caller passes it explicitly. Use `blocked` to surface unresolved
-  product or technical questions; the script then emits the
-  `needs-human` label and a `Proposal readiness: blocked: <reason>`
-  line.
+Readiness: `ready` (publish explore label) | `blocked` (publish `needs-human`, surface unresolved questions) | `ambiguous` (publish `needs-human`, surface identifier ambiguity). Pass exactly one; the script refuses otherwise.
 
-Do not demand a complete specification. Ask one question only when
-two plausibly different increments would collapse to the same
-kebab-case identifier or an existing increment uses the candidate
-identifier; in that case the caller passes `ambiguous`.
-
-## Procedure (delegated)
-
-Resolve the activated skill's directory to an absolute path, then run
-its co-located procedure script. Never derive the skill directory from
-the process working directory. The script owns the increment-id
-derivation, the canonical-issue marker search, the local baseline
-snapshot, the exact-marker body template, the label preflight, the
-readback-after-mutation rule, and the readiness decision.
+## Command
 
 ```bash
-SKILL_DIR="<resolved-absolute-path-to-activated-brainspec-slim-explore-skill>"
-bash "$SKILL_DIR/scripts/brainspec-explore.sh" "<rough-idea>" "<readiness>"
+SKILL_DIR="<absolute path to the activated brainspec-slim-explore skill directory>"
+LOG="/tmp/brainspec-explore-<id>.log"
+bash "${SKILL_DIR}/scripts/brainspec-explore.sh" \
+  --idea "<verbatim rough idea>" \
+  --readiness ready|blocked|ambiguous \
+  2>"$LOG"
 ```
 
-The script prints one of: `state: ready`, `state: blocked: <reason>`,
-`state: ambiguous: <details>`, or `state: error: <msg>`. Follow the
-imperative lines it prints.
-
-## Hard stops
-
-- The exact `<!-- brainspec:increment-id=<increment-id> -->` marker
-  appears on a closed issue or more than one issue.
-- The repository, `HEAD`, baseline, or stable increment identifier
-  cannot be resolved.
-- An existing body lacks one unambiguous generated block.
-- An existing issue carries any later-stage label or multiple stage
-  labels.
-- GitHub authentication, capability preflight, label setup, or issue
-  mutation fails.
-- The tracked or untracked Git baseline changes before mutation.
-- The increment identifier is ambiguous under the rule above.
-- The script is asked to publish `ready` while unresolved product or
-  technical questions remain.
-
-## Guardrails
-
-- The lifecycle-label set is `explore`, `needs-human`, `proposed`,
-  `implementing`, `review`, `fixing`. Accept zero or one exploration
-  outcome label.
-- Never create files in the repository, including under `openspec/`,
-  `.apm/`, or `docs/`.
-- Never run `git worktree add`, `git switch`, `git checkout -b`,
-  `openspec new change`, or another Git-state-changing command.
-- Never deduplicate by title alone, reopen a closed issue, or create
-  a sibling issue.
-- An unresolved product or technical question is NOT a hard stop.
-  Capture it by passing `readiness=blocked`; the script then labels
-  the issue `needs-human` and stops.
-- An exploration issue must contain the exact increment marker and
-  exactly one bounded `<!-- brainspec:exploration:start/end -->` block.
+The driver script is the only writer of GitHub state for this stage. Do not run `gh` directly.
 
 ## Output
 
-Report the canonical issue URL, increment ID, evidence-backed
-decisions, unresolved questions, proposal-readiness value, and any
-detected GitHub concurrency risk. A `needs-human` outcome ends the
-run after that report.
+One JSON line on stdout:
+
+- `state: prepared` — issue created or updated. `artifact.issue`, `artifact.number`, `artifact.readiness` populated.
+- `state: blocked` — `readiness` was `blocked` or `ambiguous`. Issue exists with `needs-human`.
+- `state: refused` — hard stop; `reason` names the rule (marker on closed issue, marker on multiple issues, gh auth failure, etc.).
+
+Report the JSON line as-is. Do not re-render the body. Stderr has been redirected to `$LOG`; do not read it.
+
+## Hard stops (script-enforced)
+
+- Marker on a closed issue or more than one issue.
+- `gh auth` failure or actor lacks push on the repo.
+- Missing `--idea` or `--readiness`.
+- Readiness value outside the allowed set.
