@@ -56,17 +56,20 @@ The parent session's spawn policy must allow `fixer`: use `spawns: "*"` or inclu
 
 ## BrainSpec token reduction (slim skills)
 
-This branch adds a new `.apm/slim-skills/` directory containing the slim
-variants of the BrainSpec lifecycle skills. The slim skills are installed
-alongside the original `brainspec-*` skills so both can be tested side by
-side; the originals are byte-identical to `origin/main` and unchanged.
+This branch moves the slim variants of the BrainSpec lifecycle skills
+into `.apm/skills/`, alongside the unchanged original
+`brainspec-<stage>/SKILL.md` files. The originals are byte-identical
+to `origin/main`; the slim skills live at
+`.apm/skills/brainspec-slim-<stage>/SKILL.md` so they can be tested
+side by side with the originals.
+
 
 ### Skill source of truth
 
 | Variant | Directory | Tool names |
 | --- | --- | --- |
 | Original (verbose) | `.apm/skills/brainspec-<stage>/SKILL.md` | `brainspec-explore`, `brainspec-propose`, `brainspec-apply`, `brainspec-archive`, `brainspec-coordinate` |
-| Slim | `.apm/slim-skills/brainspec-slim-<stage>/SKILL.md` | `brainspec-slim-explore`, `brainspec-slim-propose`, `brainspec-slim-apply`, `brainspec-slim-archive`, `brainspec-slim-coordinate` |
+| Slim | `.apm/skills/brainspec-slim-<stage>/SKILL.md` | `brainspec-slim-explore`, `brainspec-slim-propose`, `brainspec-slim-apply`, `brainspec-slim-archive`, `brainspec-slim-coordinate` |
 
 Each slim skill delegates its procedural content to a script in
 `scripts/brainspec-<stage>.sh`. The stub carries the invocation boundary,
@@ -106,9 +109,10 @@ npm test
 ```
 
 `npm test` regenerates the optimized session against the current
-`.apm/slim-skills/` state, runs the deterministic measurement against the
-committed `sessions/baseline_session.jsonl`, and asserts the reduction is
->= 30%. The script exits 1 if the reduction is below target.
+slim skills in `.apm/skills/`, runs the deterministic measurement
+against the committed `sessions/baseline_session.jsonl`, and asserts
+the reduction is >= 30%. The script exits 1 if the reduction is
+below target.
 
 The baseline is captured by `npm run workload:baseline` from a working
 tree whose `.apm/skills/brainspec-*/SKILL.md` files are byte-identical to
