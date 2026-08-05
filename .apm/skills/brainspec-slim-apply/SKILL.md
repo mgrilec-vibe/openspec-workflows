@@ -1,6 +1,6 @@
 ---
 name: brainspec-slim-apply
-description: Runs only after the user explicitly invokes `/brainspec-slim-apply` through the host skill mechanism. Slim variant of `/brainspec-apply` that delegates procedural content to `scripts/brainspec-apply.sh`. Preserves the externally visible BrainSpec lifecycle contract. Use this for token-constrained sessions; use the full `brainspec-apply` skill for the canonical reference.
+description: Runs only after the user explicitly invokes `/brainspec-slim-apply` through the host skill mechanism. Slim variant of `/brainspec-apply` that delegates procedural content to `scripts/brainspec-apply.sh` in this skill's directory. Preserves the externally visible BrainSpec lifecycle contract. Use this for token-constrained sessions; use the full `brainspec-apply` skill for the canonical reference.
 allowed-tools: Bash(openspec:*), Bash(git:*), Bash(gh:*), Bash(scripts:*)
 license: MIT
 compatibility: Requires OpenSpec CLI, Git, GitHub CLI authentication, and an existing BrainSpec lifecycle issue.
@@ -45,7 +45,7 @@ The script interpolates the supplied increment id; commands like
 identity, not the literal `${INC}`.
 
 ```bash
-bash scripts/brainspec-apply.sh "<increment-id>"
+bash ./scripts/brainspec-apply.sh "<increment-id>"
 ```
 
 Then for each pending task reported by the script:
