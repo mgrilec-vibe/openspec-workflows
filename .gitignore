@@ -1,0 +1,5 @@
+node_modules/
+package-lock.json
+# The baseline session is the immutable reference; commit it.
+# The optimized session is regenerated on every test run; ignore.
+sessions/optimized_session.jsonl

@@ -1,0 +1,15 @@
+{
+  "name": "openspec-workflows-token-opt",
+  "version": "1.0.0",
+  "description": "Measurement harness for the brainspec-slim token-reduction experiment. The harness runs a scripted workload through the original `brainspec-*` skills (baseline) and the new `brainspec-slim-*` skills (optimized), produces a session JSONL for each, and verifies that the optimized run reduces process-management tokens by >= 30% versus the baseline.",
+  "private": true,
+  "scripts": {
+    "test": "node tools/test.mjs",
+    "workload:baseline": "node tools/workload.mjs sessions/baseline_session.jsonl baseline",
+    "workload:optimized": "node tools/workload.mjs sessions/optimized_session.jsonl slim",
+    "measure": "node tools/measure.mjs sessions/baseline_session.jsonl sessions/optimized_session.jsonl"
+  },
+  "dependencies": {
+    "gpt-tokenizer": "^3.4.0"
+  }
+}
