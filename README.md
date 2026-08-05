@@ -80,13 +80,13 @@ identical to `origin/main` and unchanged.
 | Slim | `.apm/skills/brainspec-slim-<stage>/SKILL.md` | `brainspec-slim-explore`, `brainspec-slim-propose`, `brainspec-slim-apply`, `brainspec-slim-archive`, `brainspec-slim-coordinate` |
 
 Each slim skill delegates its procedural content to a co-located
-`scripts/brainspec-<stage>.sh` (relative to the skill's own directory).
+`scripts/brainspec-<stage>.sh`. The host exposes the activated skill
+location; the agent resolves that location to an absolute path and runs
+`bash "$SKILL_DIR/scripts/brainspec-<stage>.sh" "<id>"`. The command
+never assumes that the process working directory is the skill root.
 The stub carries the invocation boundary, hard stops, guardrails, and
-every externally visible rule (marker formats, lifecycle label set,
-metadata schema, `Refs` / `Closes` linkage, strict-validation
-contract). The mechanical procedure lives in the script, which the
-agent runs via `bash ./scripts/brainspec-<stage>.sh "<id>"` from the
-skill's directory.
+externally visible rules; the helper emits deterministic templates and
+ordered command/readback directives.
 
 ### What the slim skills preserve
 
@@ -114,20 +114,33 @@ skill's directory.
 ### Measure
 
 ```bash
-npm install
+# Capture sessions (requires an authenticated OMP model provider):
+npm run workload:baseline
+npm run workload:optimized
+
+# Verify committed captures (offline; no model credentials required):
+npm run measure
 npm test
 ```
 
-`npm test` regenerates the optimized session against the current
-slim skills in `.apm/skills/`, runs the deterministic measurement
-against the committed `sessions/baseline_session.jsonl`, and asserts
-the reduction is >= 30%. The script exits 1 if the reduction is
-below target.
+The two workload commands make eight read-only, tool-disabled OMP model
+calls each using the same canonical process-management cases. Baseline
+calls receive the original verbose skill; optimized calls receive the
+slim skill plus output from its real co-located helper. The driver
+concatenates the unmodified native OMP JSONL records under `sessions/`.
+Set `BRAINSPEC_WORKLOAD_MODEL` to override the model; both captures must
+use the same model.
 
-The baseline is captured by `npm run workload:baseline` from a working
-tree whose `.apm/skills/brainspec-*/SKILL.md` files are byte-identical to
-`origin/main`. The optimized session is captured by
-`npm run workload:optimized`.
+`tools/measure.mjs` applies an explicit case/task/sub-string allowlist
+and sums the provider usage stored on each matched assistant message:
+prompt tokens are `input + cacheRead + cacheWrite`, and completion
+tokens are `output`. `npm test` performs the same deterministic
+comparison against the two committed captures without making model or
+network calls.
+
+The committed actual-session result is **33.20% reduction**:
+`baseline_total = 59,317`, `optimized_total = 39,625`, eight matched
+LLM calls per session.
 
 ### What did NOT change
 
@@ -136,7 +149,7 @@ tree whose `.apm/skills/brainspec-*/SKILL.md` files are byte-identical to
   are all preserved.
 - The `Bash(openspec:*)`, `Bash(git:*)`, `Bash(gh:*)` tools the agent
   already uses are unchanged; `Bash(scripts:*)` is additive.
-- No new network calls or external dependencies beyond the local
-  cl100k_base tokenizer (`gpt-tokenizer`) used by the measurement
-  harness.
+- Workload capture uses the already-installed OMP CLI and its configured
+  model provider. Measurement and `npm test` have no external dependency
+  and make no network calls.
 - The original `brainspec-*` skills in `.apm/skills/` are unchanged.

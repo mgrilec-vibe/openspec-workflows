@@ -41,7 +41,8 @@ persistence:
   - read body, labels, updatedAt; re-read immediately before mutation; abort on change
   - write once, read the result back
 commands:
-  - run: gh search issues --repo "<owner>/<repo>" --state all --match body "<!-- brainspec:coordination-id=" --limit 1000 --json number,state,url,body
+  - run: gh search issues --repo "<owner>/<repo>" --state open --match body "<!-- brainspec:coordination-id=" --limit 1000 --json number,state,url,body
+  - run: gh search issues --repo "<owner>/<repo>" --state closed --match body "<!-- brainspec:coordination-id=" --limit 1000 --json number,state,url,body
   - run: gh issue create --repo "<owner>/<repo>" --title "Coordination: <plan-id>" --body-file <body> --label "coordination"
     readback: gh search issues for the exact coordination marker
   - run: gh issue edit <url> --add-label "coordination" --body-file <body>
