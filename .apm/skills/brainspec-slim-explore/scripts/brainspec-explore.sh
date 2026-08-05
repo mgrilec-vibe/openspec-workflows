@@ -6,11 +6,11 @@
 # snapshot, the exact-marker body template, the label preflight, and
 # the readback-after-mutation rule.
 #
-# Usage: brainspec-explore.sh "<rough-idea>" [readiness]
-#   readiness: "ready" (default) | "blocked" | "ambiguous"
-# The script refuses to mark the body as "ready" unless the caller
-# passes readiness="ready" explicitly. To surface unresolved
-# questions, pass readiness="blocked".
+# Usage: brainspec-explore.sh "<rough-idea>" "<readiness>"
+#   readiness: "ready" | "blocked" | "ambiguous" (required)
+# The script refuses to proceed unless the caller explicitly supplies
+# a readiness decision. To surface unresolved questions, pass
+# readiness="blocked".
 #
 # The output is emitted as a single-quoted heredoc so that the
 # template is byte-stable; substitutions the agent must reason about
@@ -20,10 +20,14 @@
 set -euo pipefail
 
 IDEA="${1:-}"
-READINESS="${2:-ready}"
+READINESS="${2:-}"
 
 if [[ -z "$IDEA" ]]; then
   echo "state: error: missing rough-idea" >&2
+  exit 2
+fi
+if [[ -z "$READINESS" ]]; then
+  echo "state: error: missing readiness (expected ready|blocked|ambiguous)" >&2
   exit 2
 fi
 
@@ -81,7 +85,8 @@ baseline-snapshot:
   - capture: git ls-files --others --exclude-standard
   - compare before/after mutation with cmp -s
 commands:
-  - run: gh search issues --repo "<owner>/<repo>" --state all --match body "<!-- brainspec:increment-id=<id> -->" --limit 1000 --json number,state,url,body
+  - run: gh search issues --repo "<owner>/<repo>" --state open --match body "<!-- brainspec:increment-id=<id> -->" --limit 1000 --json number,state,url,body
+  - run: gh search issues --repo "<owner>/<repo>" --state closed --match body "<!-- brainspec:increment-id=<id> -->" --limit 1000 --json number,state,url,body
   - run: gh auth status
   - run: gh api "repos/<owner>/<repo>" --jq '.permissions | {admin, maintain, push, triage}'
   - run: gh issue create --repo "<owner>/<repo>" --title "Explore: <id>" --body-file <body> --label "<stage-label>"

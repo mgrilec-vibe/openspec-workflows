@@ -40,8 +40,13 @@ schema cross-checks, the spec-sync algorithm, the move-once
 classification, the ordered PR-readiness transition, and the merge
 gate. The script interpolates the supplied increment id.
 
+Resolve the activated skill's directory (the directory containing
+this `SKILL.md`) to an absolute path. Never resolve the script
+relative to the process working directory.
+
 ```bash
-bash ./scripts/brainspec-archive.sh "<increment-id>"
+skill_dir="<absolute path to the activated brainspec-slim-archive skill directory>"
+bash "$skill_dir/scripts/brainspec-archive.sh" "<increment-id>"
 ```
 
 Then follow the script's per-step directives:

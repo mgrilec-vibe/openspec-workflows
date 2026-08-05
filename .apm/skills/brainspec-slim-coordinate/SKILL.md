@@ -23,8 +23,12 @@ Run the procedure script; it owns the candidate resolution
 classification rules, the cycle rejection logic, the wave
 construction, and the optional coordination-issue persistence.
 
+Resolve the activated skill's directory to an absolute path, then run
+its co-located procedure script:
+
 ```bash
-bash ./scripts/brainspec-coordinate.sh "<issue-list-or-milestone>"
+SKILL_DIR="<resolved-absolute-path-to-activated-brainspec-slim-coordinate-skill>"
+bash "$SKILL_DIR/scripts/brainspec-coordinate.sh" "<issue-list-or-milestone>"
 ```
 
 The script prints a waves summary, the classified relationships, the

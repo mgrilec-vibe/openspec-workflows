@@ -14,6 +14,10 @@ if [[ -z "$INC" ]]; then
   exit 2
 fi
 
+ARCHIVE_DATE="$(date -u +%F)"
+SOURCE_PATH="openspec/changes/${INC}"
+ARCHIVE_PATH="openspec/changes/archive/${ARCHIVE_DATE}-${INC}"
+
 # Unquoted heredoc: ${INC} interpolates.
 cat <<EOF
 state: prepared
@@ -25,7 +29,7 @@ archive-boundary-template: |
   - Lifecycle PR: <url> - open draft until transition step
   - Implementation head: <pushed sha>
   - Spec sync: <applied|skipped|skipped-by-schema>
-  - Archive target: openspec/changes/archive/YYYY-MM-DD-${INC}/
+  - Archive target: ${ARCHIVE_PATH}/
   - Move classification: <class>
   - Manifest: <path/mode/blob-identity summary>
   <!-- brainspec:archive:end -->
@@ -56,17 +60,23 @@ commands:
     readback: rules (apply only to specs being written)
   - run: openspec validate "${INC}" --type change --strict
     readback: exit 0
-  - run: mkdir -p "openspec/changes/archive"
-  - run: mv "openspec/changes/${INC}" "openspec/changes/archive/YYYY-MM-DD-${INC}"
-    readback: source absent, target present, exact manifest equality
-  - run: git add openspec/changes/archive/YYYY-MM-DD-${INC}
-  - run: git commit -m "docs(openspec): archive ${INC}"
-  - run: git push origin "${INC}" --no-force
-  - run: gh pr edit "<pr-url>" --base <default> --body-file <archive-summary>
-    readback: isDraft=true (body updated; gh pr edit does not undraft)
-  - run: gh pr ready "<pr-url>"
-    readback: state=ready
-  - run: gh pr merge "<pr-url>" --squash --delete-branch=false
+  - run: git -C "<lifecycle-worktree>" ls-files --stage -- "${SOURCE_PATH}"
+    readback: save the complete source path/mode/blob-identity manifest; it is nonempty
+  - run: mkdir -p "<lifecycle-worktree>/openspec/changes/archive"
+  - run: mv "<lifecycle-worktree>/${SOURCE_PATH}" "<lifecycle-worktree>/${ARCHIVE_PATH}"
+    readback: source absent, target present, working-tree manifest equals the saved source manifest with only the path prefix changed
+  - run: git -C "<lifecycle-worktree>" add -A -- "${SOURCE_PATH}" "${ARCHIVE_PATH}"
+  - run: git -C "<lifecycle-worktree>" diff --cached --name-status --find-renames=100% -- "${SOURCE_PATH}" "${ARCHIVE_PATH}"
+    readback: every saved source path is staged as deleted or as the source of an R100 rename, and every corresponding archive path is staged as added or as the target of that R100 rename; no other path appears
+  - run: git -C "<lifecycle-worktree>" ls-files --stage -- "${ARCHIVE_PATH}"
+    readback: staged archive path/mode/blob-identity manifest exactly equals the saved source manifest with only the path prefix changed
+  - run: git -C "<lifecycle-worktree>" commit -m "docs(openspec): archive ${INC}"
+  - run: git -C "<lifecycle-worktree>" push origin "${INC}" --no-force
+  - run: cd "<lifecycle-worktree>" && gh pr edit "<pr-url>" --base <default> --body-file <archive-summary-with-Closes>
+    readback: isDraft=true (body updated; gh pr edit does not undraft), body contains "Closes #<n>"
+  - run: cd "<lifecycle-worktree>" && gh pr ready "<pr-url>"
+    readback: state=ready, body still contains "Closes #<n>"
+  - run: cd "<lifecycle-worktree>" && gh pr merge "<pr-url>" --squash --delete-branch=false
     readback: merged=true, terminal issue block recorded
 hard-stops:
   - PR not the lifecycle PR, not at the verified head, or already merged

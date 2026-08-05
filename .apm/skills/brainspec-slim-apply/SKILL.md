@@ -37,24 +37,40 @@ carries only the constraints the model must reason about.
 
 Run the procedure script; it owns the canonical
 `<!-- brainspec:implementation:start -->` boundary template, the
-state readback rules, the metadata cross-checks, and the verification
-commands. Do not invent these from memory; they live in the script.
-The script interpolates the supplied increment id; commands like
+state readback rules, the metadata cross-checks, and the ordered
+execution and verification directives. It is a deterministic directive
+emitter: it does not execute commands, parse task output, run checks, or
+observe statuses. Do not invent its directives from memory. The script
+interpolates the supplied increment id; commands like
 `openspec status --change "${INC}"` and the marker
 `<!-- brainspec:increment-id=${INC} -->` are emitted as the resolved
 identity, not the literal `${INC}`.
 
+Resolve the activated skill's directory to an absolute path, then run
+its co-located procedure script:
+
 ```bash
-bash ./scripts/brainspec-apply.sh "<increment-id>"
+SKILL_DIR="<resolved-absolute-path-to-activated-brainspec-slim-apply-skill>"
+bash "$SKILL_DIR/scripts/brainspec-apply.sh" "<increment-id>"
 ```
 
-Then for each pending task reported by the script:
+Execute every emitted command with the verified absolute lifecycle
+worktree as the explicit working directory; never assume the process
+working directory. First execute and read back `openspec status`, then
+execute `openspec instructions apply --change "<increment-id>" --json`.
+Read `progress`, `tasks`, `instruction`, optional `context`, and optional
+`operationGuidance` from that executed command's output. The pending
+tasks come only from this caller-observed OpenSpec output, not from the
+directive emitter.
+
+Then for each pending task in that output:
 
 1. Make the minimal code change required.
 2. Mark the task complete in `tasks.md`.
-3. Run the focused verification command the script printed.
+3. Run a focused verification command derived from the task and verified
+   plan, and observe its command, output, and exit status.
 4. Stage only owned paths, run `git diff --cached --check`, commit
-   with the scoped message the script printed, and push without force.
+   with the scoped message directed by the script, and push without force.
 5. Read the same draft `Refs` pull request back at the pushed head.
 
 For `revise plan only:` mode, follow the script's plan-only branch
@@ -101,14 +117,21 @@ then pause.
 
 ## Verification (delegated)
 
-At completion the script runs:
+After all tasks are complete, execute the helper's completion directives
+in order from the verified absolute lifecycle worktree:
 
-- `openspec validate "<increment-id>" --type change --strict`
-- the named acceptance scenario
-- the relevant application smoke path
+1. Re-run `openspec instructions apply --change "<increment-id>" --json`
+   and read back that its `tasks` and `progress` report no pending task.
+2. Run `openspec validate "<increment-id>" --type change --strict`.
+3. Run the named acceptance command from the verified plan.
+4. Run the named relevant application smoke command from the verified
+   plan.
 
-and prints the per-check status. Read the result back; do not skip
-checks the script reported failed.
+The caller must observe and record the command, output, and exit status
+for strict validation, named acceptance, and smoke. The helper only emits
+these required directives; it never runs checks or prints observed
+statuses. Do not complete or hand off while any required result is
+missing or failed.
 
 ## Output
 
