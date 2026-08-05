@@ -53,3 +53,76 @@ Use `agent: "fixer"` in a `task` invocation. Give it an independent, fully speci
 The parent session's spawn policy must allow `fixer`: use `spawns: "*"` or include `fixer` in its allowed-agent list. Otherwise OMP rejects the delegation before the worker starts.
 
 `fixer` cannot spawn child agents. It has only implementation tools and does not autoload skills, keeping its behavior predictable. It returns `## Summary`, `## Changes`, and `## Verification` headings for the parent to reconcile. Do not delegate a real coding task while OMP plan mode is active: plan mode makes subagents read-only.
+
+## BrainSpec token reduction (slim skills)
+
+This branch adds a new `.apm/slim-skills/` directory containing the slim
+variants of the BrainSpec lifecycle skills. The slim skills are installed
+alongside the original `brainspec-*` skills so both can be tested side by
+side; the originals are byte-identical to `origin/main` and unchanged.
+
+### Skill source of truth
+
+| Variant | Directory | Tool names |
+| --- | --- | --- |
+| Original (verbose) | `.apm/skills/brainspec-<stage>/SKILL.md` | `brainspec-explore`, `brainspec-propose`, `brainspec-apply`, `brainspec-archive`, `brainspec-coordinate` |
+| Slim | `.apm/slim-skills/brainspec-slim-<stage>/SKILL.md` | `brainspec-slim-explore`, `brainspec-slim-propose`, `brainspec-slim-apply`, `brainspec-slim-archive`, `brainspec-slim-coordinate` |
+
+Each slim skill delegates its procedural content to a script in
+`scripts/brainspec-<stage>.sh`. The stub carries the invocation boundary,
+hard stops, guardrails, and every externally visible rule (marker formats,
+lifecycle label set, metadata schema, `Refs` / `Closes` linkage,
+strict-validation contract). The mechanical procedure lives in the script,
+which the agent runs via `Bash(scripts:*)` (added to `allowed-tools`).
+
+### What the slim skills preserve
+
+- The canonical issue marker `<!-- brainspec:increment-id=<id> -->`.
+- The bounded boundaries (`proposal:start`, `implementation:start`,
+  `archive:start`, `exploration:start`).
+- The lifecycle label set (`explore`, `needs-human`, `proposed`,
+  `implementing`, `archiving`, `review`, `fixing`).
+- The `github-issue.json` schema (`schemaVersion: 2` with exactly seven
+  keys).
+- The `Refs #` / `Closes #` PR-linkage rule.
+- The strict-validation contract and the ordered
+  `gh pr edit` -> `gh pr ready` -> `gh pr merge` transition.
+
+### What the slim skills change
+
+- The marker in user tasks is `/brainspec-slim-<stage> <id>` rather than
+  `/brainspec-<stage> <id>`. The agent still reports the handoff to the
+  next explicit invocation; the next stage is the slim variant when
+  running under the slim skill set.
+- The procedural content (commit messages, status checks, boundary
+  templates, readback rules) is not in the skill prompt; it is emitted
+  as a tool result when the agent runs the script.
+
+### Measure
+
+```bash
+npm install
+npm test
+```
+
+`npm test` regenerates the optimized session against the current
+`.apm/slim-skills/` state, runs the deterministic measurement against the
+committed `sessions/baseline_session.jsonl`, and asserts the reduction is
+>= 30%. The script exits 1 if the reduction is below target.
+
+The baseline is captured by `npm run workload:baseline` from a working
+tree whose `.apm/skills/brainspec-*/SKILL.md` files are byte-identical to
+`origin/main`. The optimized session is captured by
+`npm run workload:optimized`.
+
+### What did NOT change
+
+- No externally visible behavior: PR/issue body schema, marker formats,
+  labels, commit-message conventions, and the strict-validation contract
+  are all preserved.
+- The `Bash(openspec:*)`, `Bash(git:*)`, `Bash(gh:*)` tools the agent
+  already uses are unchanged; `Bash(scripts:*)` is additive.
+- No new network calls or external dependencies beyond the local
+  cl100k_base tokenizer (`gpt-tokenizer`) used by the measurement
+  harness.
+- The original `brainspec-*` skills in `.apm/skills/` are unchanged.
