@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
-# Thin shim. Real driver: scripts/lifecycle/brainspec-lifecycle.sh.
+# Thin shim. Driver is co-located in this skill's scripts folder.
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/../../../../" && pwd)"
-DRIVER="${REPO_ROOT}/scripts/lifecycle/brainspec-lifecycle.sh"
+DRIVER="${SCRIPT_DIR}/brainspec-lifecycle.sh"
+if [[ "${1:-}" == "help" || "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+  exec "${DRIVER}" help
+fi
 exec "${DRIVER}" archive --increment "${1:-}" --sync yes

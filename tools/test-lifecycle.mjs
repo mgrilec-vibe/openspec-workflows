@@ -10,6 +10,11 @@
  *   - exit codes match the contract (0 ok, 2 refused, 4 missing input)
  *   - hard-stop rules are enforced
  *
+ * The driver is co-located with each slim skill under
+ * .apm/skills/brainspec-slim-<stage>/scripts/. This test uses the
+ * explore variant for the canonical path. The five copies are
+ * byte-identical.
+ *
  * Run: node tools/test-lifecycle.mjs
  */
 
@@ -22,7 +27,7 @@ import { fileURLToPath } from 'node:url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const REPO_ROOT = path.resolve(__dirname, '..');
-const DRIVER = path.join(REPO_ROOT, 'scripts', 'lifecycle', 'brainspec-lifecycle.sh');
+const DRIVER = path.join(REPO_ROOT, '.apm', 'skills', 'brainspec-slim-explore', 'scripts', 'brainspec-lifecycle.sh');
 const FIXTURE_DIR = path.join(REPO_ROOT, 'tools', 'fixtures');
 
 let failures = 0;
@@ -235,9 +240,6 @@ function test_unknown_stage() {
 }
 
 function test_stderr_leak_guard() {
-  // Invoke propose (which calls log "[propose] next: ..."), so the
-  // script's internal log must contain that diagnostic. The Bash
-  // tool's stderr stream must be empty.
   const t = mkTmp('lifecycle-leak-');
   const logPath = path.join(t.dir, 'script-internal.log');
   const result = spawnSync('bash', [DRIVER, 'propose', '--increment', 'test-id'], {
@@ -284,6 +286,37 @@ function test_wrapper_explore() {
   fs.rmSync(t.dir, { recursive: true, force: true });
 }
 
+function test_apm_install_simulation() {
+  // Simulate an APM install: copy a slim skill folder to a fresh
+  // location and verify the wrapper still resolves the driver via
+  // the relative path. The driver must travel with the skill.
+  const t = mkTmp('lifecycle-apm-');
+  const dest = path.join(t.dir, 'skill-folder');
+  fs.mkdirSync(dest, { recursive: true });
+  fs.cpSync(
+    path.join(REPO_ROOT, '.apm', 'skills', 'brainspec-slim-explore', 'scripts'),
+    path.join(dest, 'scripts'),
+    { recursive: true },
+  );
+  const wrapper = path.join(dest, 'scripts', 'brainspec-explore.sh');
+  const result = spawnSync('bash', [wrapper, 'add session replay', 'ready'], {
+    cwd: t.dir,
+    env: {
+      ...process.env,
+      PATH: `${t.shimDir}:${process.env.PATH}`,
+      BRAINSPE_REPO: 'fixture-org/fixture-repo',
+      BRAINSPEC_LOG: path.join(t.dir, 'apm-wrapper.log'),
+    },
+    encoding: 'utf8',
+  });
+  const stdout = (result.stdout || '').trimEnd();
+  let parsed = null;
+  try { parsed = JSON.parse(stdout); } catch { parsed = null; }
+  const ok = result.status === 0 && parsed && parsed.state === 'prepared';
+  log('APM install simulation: skill folder copied to fresh dir, driver reachable', ok, !ok ? ('stdout=' + stdout.slice(0, 80)) : '');
+  fs.rmSync(t.dir, { recursive: true, force: true });
+}
+
 test_help();
 test_help_short_circuits();
 test_explore_ready();
@@ -300,6 +333,7 @@ test_no_args();
 test_unknown_stage();
 test_stderr_leak_guard();
 test_wrapper_explore();
+test_apm_install_simulation();
 
 process.stdout.write(`\n[test-lifecycle] ${failures === 0 ? 'all PASS' : failures + ' FAIL'}\n`);
 process.exit(failures === 0 ? 0 : 1);
